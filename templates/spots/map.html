@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Карта грибных мест{% endblock %}
+{% block content %}
+<div id="map" style="height: 80vh; width: 100%;"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([55.75, 37.62], 6); // старт: центр России
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+    }).addTo(map);
+
+    fetch("{% url 'spots:spots_api' %}")
+        .then(response => response.json())
+        .then(data => {
+            data.spots.forEach(spot => {
+                const rating = spot.average_rating !== null ? spot.average_rating : '—';
+                const marker = L.marker([spot.latitude, spot.longitude]).addTo(map);
+                marker.bindPopup(
+                    `<b>${spot.title}</b><br>Рейтинг: ${rating} (${spot.ratings_count})<br>` +
+                    `<a href="/spots/${spot.id}/">Подробнее</a>`
+                );
+            });
+        });
+</script>
+{% endblock %}

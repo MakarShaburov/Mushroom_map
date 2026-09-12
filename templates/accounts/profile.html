@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Профиль{% endblock %}
+{% block content %}
+<h1>{{ profile.user.username }}</h1>
+<p>Рейтинг пользователя: {{ profile.rating }}</p>
+<p>О себе: {{ profile.bio|default:"—" }}</p>
+<h2>Мои места</h2>
+<ul>
+{% for spot in profile.user.spots.all %}
+    <li><a href="{% url 'spots:spot_detail' spot.pk %}">{{ spot.title }}</a> — рейтинг {{ spot.average_rating|default:"—" }}</li>
+{% empty %}
+    <li>Вы ещё не добавили ни одного места.</li>
+{% endfor %}
+</ul>
+{% endblock %}
