@@ -28,7 +28,14 @@ def spots_api(request):
 
 def spot_detail(request, pk):
     spot = get_object_or_404(MushroomSpot, pk=pk)
-    return render(request, 'spots/spot_detail.html', {'spot': spot})
+    user_rating_given = None
+    if request.user.is_authenticated and request.user != spot.author:
+        user_rating_given = spot.author.received_user_ratings.filter(rater=request.user).first()
+    context = {
+        'spot': spot,
+        'user_rating_given': user_rating_given,
+    }
+    return render(request, 'spots/spot_detail.html', context)
 
 
 @login_required
@@ -59,5 +66,4 @@ def spot_rate(request, pk):
         SpotRating.objects.update_or_create(
             spot=spot, user=request.user, defaults={'score': int(score)},
         )
-        spot.author.profile.recalculate_rating()
     return redirect('spots:spot_detail', pk=pk)

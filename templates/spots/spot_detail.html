@@ -3,21 +3,42 @@
 {% block content %}
 <h1>{{ spot.title }}</h1>
 <p>{{ spot.description }}</p>
-<p>Автор: {{ spot.author.username }}</p>
+<p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> (рейтинг автора: {{ spot.author.profile.rating }})</p>
 <p>Координаты: {{ spot.latitude }}, {{ spot.longitude }}</p>
-<p>Рейтинг: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок)</p>
+<p>Рейтинг места: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок, с учётом веса голосов)</p>
 
 {% if user.is_authenticated %}
 <form method="post" action="{% url 'spots:spot_rate' spot.pk %}">
     {% csrf_token %}
-    <label for="score">Ваша оценка (1-5):</label>
+    <label for="score">Ваша оценка места (1-5):</label>
     <select name="score" id="score">
         {% for i in "12345" %}
             <option value="{{ i }}">{{ i }}</option>
         {% endfor %}
     </select>
-    <button type="submit">Оценить</button>
+    <button type="submit">Оценить место</button>
 </form>
+{% endif %}
+
+<h2>Оценить автора места</h2>
+<p>Рейтинг пользователя {{ spot.author.username }}: {{ spot.author.profile.rating }}</p>
+
+{% if user.is_authenticated and user != spot.author %}
+<form method="post" action="{% url 'accounts:rate_user' spot.author.username %}">
+    {% csrf_token %}
+    <input type="hidden" name="spot_id" value="{{ spot.pk }}">
+    <label for="user_score">
+        {% if user_rating_given %}Изменить вашу оценку{% else %}Ваша оценка пользователю{% endif %} (1-5):
+    </label>
+    <select name="score" id="user_score">
+        {% for i in "12345" %}
+            <option value="{{ i }}" {% if user_rating_given and user_rating_given.score|stringformat:"s" == i %}selected{% endif %}>{{ i }}</option>
+        {% endfor %}
+    </select>
+    <button type="submit">Оценить пользователя</button>
+</form>
+{% elif user == spot.author %}
+<p><em>Нельзя оценить самого себя.</em></p>
 {% endif %}
 
 <p><a href="{% url 'spots:map' %}">← Назад к карте</a></p>

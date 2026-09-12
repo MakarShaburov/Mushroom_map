@@ -2,6 +2,8 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
+from accounts.utils import vote_weight
+
 
 class MushroomSpot(models.Model):
     """Грибное место, отмеченное на карте."""
@@ -35,8 +37,19 @@ class MushroomSpot(models.Model):
 
     @property
     def average_rating(self):
-        agg = self.ratings.aggregate(avg=models.Avg('score'))
-        return round(agg['avg'], 2) if agg['avg'] is not None else None
+        """Средний рейтинг места, взвешенный по рейтингу того, кто
+        оценивал: чем выше рейтинг пользователя, тем весомее его
+        голос (см. accounts.utils.vote_weight)."""
+        ratings = self.ratings.select_related('user__profile').all()
+        if not ratings:
+            return None
+        weighted_sum = 0.0
+        total_weight = 0.0
+        for r in ratings:
+            weight = vote_weight(r.user.profile.rating)
+            weighted_sum += r.score * weight
+            total_weight += weight
+        return round(weighted_sum / total_weight, 2) if total_weight else None
 
     @property
     def ratings_count(self):
@@ -66,27 +79,3 @@ class SpotRating(models.Model):
 
     def __str__(self):
         return f'{self.user} -> {self.spot}: {self.score}'
-
-
-class SpotFeedbackVote(models.Model):
-    """Оценка полезности/достоверности информации о месте,
-    выставляемая другим пользователям (влияет на рейтинг автора)."""
-
-    spot = models.ForeignKey(
-        MushroomSpot, on_delete=models.CASCADE, related_name='feedback_votes',
-    )
-    voter = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='given_feedback_votes',
-    )
-    is_useful = models.BooleanField('Полезно/достоверно')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = 'Оценка полезности'
-        verbose_name_plural = 'Оценки полезности'
-        constraints = [
-            models.UniqueConstraint(fields=['spot', 'voter'], name='unique_feedback_vote_per_user'),
-        ]
-
-    def __str__(self):
-        return f'{self.voter} -> {self.spot}: {"полезно" if self.is_useful else "не полезно"}'

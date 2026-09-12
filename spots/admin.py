@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import MushroomSpot, SpotFeedbackVote, SpotRating
+from .models import MushroomSpot, SpotRating
 
 
 @admin.register(MushroomSpot)
@@ -14,8 +14,3 @@ class MushroomSpotAdmin(admin.ModelAdmin):
 class SpotRatingAdmin(admin.ModelAdmin):
     list_display = ('spot', 'user', 'score', 'created_at')
     list_filter = ('score',)
-
-
-@admin.register(SpotFeedbackVote)
-class SpotFeedbackVoteAdmin(admin.ModelAdmin):
-    list_display = ('spot', 'voter', 'is_useful', 'created_at')

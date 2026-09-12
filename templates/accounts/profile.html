@@ -2,7 +2,7 @@
 {% block title %}Профиль{% endblock %}
 {% block content %}
 <h1>{{ profile.user.username }}</h1>
-<p>Рейтинг пользователя: {{ profile.rating }}</p>
+<p>Рейтинг пользователя: {{ profile.rating }} (оценок получено: {{ profile.user.received_user_ratings.count }})</p>
 <p>О себе: {{ profile.bio|default:"—" }}</p>
 <h2>Мои места</h2>
 <ul>

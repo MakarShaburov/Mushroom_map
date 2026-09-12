@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -19,14 +20,59 @@ class Profile(models.Model):
         return f'Профиль {self.user.username}'
 
     def recalculate_rating(self):
-        """Пересчитывает рейтинг пользователя на основе среднего
-        рейтинга добавленных им мест."""
-        from spots.models import MushroomSpot
-
-        spots = MushroomSpot.objects.filter(author=self.user)
-        ratings = [s.average_rating for s in spots if s.average_rating is not None]
-        self.rating = round(sum(ratings) / len(ratings), 2) if ratings else 0.0
+        """Пересчитывает рейтинг пользователя как простое среднее
+        оценок (1-5), выставленных ему другими пользователями напрямую
+        (UserRating). Рейтинг мест на этот расчёт не влияет — это
+        отдельная, независимая система."""
+        agg = self.user.received_user_ratings.aggregate(avg=models.Avg('score'))
+        self.rating = round(agg['avg'], 2) if agg['avg'] is not None else 0.0
         self.save(update_fields=['rating'])
+
+
+class UserRating(models.Model):
+    """Оценка одного пользователя другим (1-5). Обычно выставляется
+    после посещения места, чтобы оценить, насколько его автору можно
+    доверять. Одна пара (rater, rated_user) — одна актуальная оценка,
+    её можно менять."""
+
+    rater = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='given_user_ratings',
+        verbose_name='Кто оценил',
+    )
+    rated_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='received_user_ratings',
+        verbose_name='Кого оценили',
+    )
+    spot = models.ForeignKey(
+        'spots.MushroomSpot',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='user_ratings_given',
+        verbose_name='Место-повод (необязательно)',
+    )
+    score = models.PositiveSmallIntegerField(
+        'Оценка', validators=[MinValueValidator(1), MaxValueValidator(5)],
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Оценка пользователя'
+        verbose_name_plural = 'Оценки пользователей'
+        constraints = [
+            models.UniqueConstraint(fields=['rater', 'rated_user'], name='unique_user_rating_per_rater'),
+            models.CheckConstraint(
+                condition=~models.Q(rater=models.F('rated_user')),
+                name='cannot_rate_self',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.rater} -> {self.rated_user}: {self.score}'
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
