@@ -16,12 +16,13 @@ def spots_api(request):
         {
             'id': spot.pk,
             'title': spot.title,
+            'author': spot.author.username,
             'latitude': spot.latitude,
             'longitude': spot.longitude,
             'average_rating': spot.average_rating,
             'ratings_count': spot.ratings_count,
         }
-        for spot in MushroomSpot.objects.all()
+        for spot in MushroomSpot.objects.select_related('author').all()
     ]
     return JsonResponse({'spots': data})
 
@@ -66,4 +67,14 @@ def spot_rate(request, pk):
         SpotRating.objects.update_or_create(
             spot=spot, user=request.user, defaults={'score': int(score)},
         )
+    return redirect('spots:spot_detail', pk=pk)
+
+
+@login_required
+@require_POST
+def spot_delete(request, pk):
+    spot = get_object_or_404(MushroomSpot, pk=pk)
+    if spot.author_id == request.user.id:
+        spot.delete()
+        return redirect('spots:map')
     return redirect('spots:spot_detail', pk=pk)

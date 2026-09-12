@@ -5,7 +5,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    const map = L.map('map').setView([55.75, 37.62], 6); // старт: центр России
+    const map = L.map('map').setView([55.75, 37.62], 10); // старт: Москва и область
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
@@ -19,7 +19,7 @@
                 const rating = spot.average_rating !== null ? spot.average_rating : '—';
                 const marker = L.marker([spot.latitude, spot.longitude]).addTo(map);
                 marker.bindPopup(
-                    `<b>${spot.title}</b><br>Рейтинг: ${rating} (${spot.ratings_count})<br>` +
+                    `<b>${spot.title}</b><br>Автор: ${spot.author}<br>Рейтинг: ${rating} (${spot.ratings_count})<br>` +
                     `<a href="/spots/${spot.id}/">Подробнее</a>`
                 );
             });

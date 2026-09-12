@@ -41,5 +41,12 @@
 <p><em>Нельзя оценить самого себя.</em></p>
 {% endif %}
 
+{% if user == spot.author %}
+<form method="post" action="{% url 'spots:spot_delete' spot.pk %}" onsubmit="return confirm('Удалить это место без возможности восстановления?');">
+    {% csrf_token %}
+    <button type="submit">Удалить это место</button>
+</form>
+{% endif %}
+
 <p><a href="{% url 'spots:map' %}">← Назад к карте</a></p>
 {% endblock %}
