@@ -5,8 +5,8 @@ from .models import MushroomSpot, SpotRating
 
 @admin.register(MushroomSpot)
 class MushroomSpotAdmin(admin.ModelAdmin):
-    list_display = ('title', 'author', 'average_rating', 'ratings_count', 'created_at')
-    list_filter = ('created_at',)
+    list_display = ('title', 'author', 'mushroom_type', 'average_rating', 'ratings_count', 'created_at')
+    list_filter = ('mushroom_type', 'created_at')
     search_fields = ('title', 'description', 'author__username')
 
 

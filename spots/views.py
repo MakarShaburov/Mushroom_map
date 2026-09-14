@@ -7,7 +7,9 @@ from .models import MushroomSpot, SpotRating
 
 
 def map_view(request):
-    return render(request, 'spots/map.html')
+    return render(request, 'spots/map.html', {
+        'mushroom_type_choices': MushroomSpot.MUSHROOM_TYPE_CHOICES,
+    })
 
 
 def spots_api(request):
@@ -17,6 +19,8 @@ def spots_api(request):
             'id': spot.pk,
             'title': spot.title,
             'author': spot.author.username,
+            'mushroom_type': spot.mushroom_type,
+            'mushroom_type_label': spot.get_mushroom_type_display(),
             'latitude': spot.latitude,
             'longitude': spot.longitude,
             'average_rating': spot.average_rating,
@@ -44,18 +48,25 @@ def spot_create(request):
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
+        mushroom_type = request.POST.get('mushroom_type', 'other')
         latitude = request.POST.get('latitude')
         longitude = request.POST.get('longitude')
+        valid_types = dict(MushroomSpot.MUSHROOM_TYPE_CHOICES)
+        if mushroom_type not in valid_types:
+            mushroom_type = 'other'
         if title and latitude and longitude:
             MushroomSpot.objects.create(
                 author=request.user,
                 title=title,
                 description=description,
+                mushroom_type=mushroom_type,
                 latitude=latitude,
                 longitude=longitude,
             )
             return redirect('spots:map')
-    return render(request, 'spots/spot_form.html')
+    return render(request, 'spots/spot_form.html', {
+        'mushroom_type_choices': MushroomSpot.MUSHROOM_TYPE_CHOICES,
+    })
 
 
 @login_required

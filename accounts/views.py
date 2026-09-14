@@ -1,24 +1,24 @@
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from spots.models import MushroomSpot
 
+from .forms import SignUpForm
 from .models import UserRating
 
 
 def signup(request):
     if request.method == 'POST':
-        form = UserCreationForm(request.POST)
+        form = SignUpForm(request.POST)
         if form.is_valid():
             user = form.save()
             login(request, user)
             return redirect('spots:map')
     else:
-        form = UserCreationForm()
+        form = SignUpForm()
     return render(request, 'accounts/signup.html', {'form': form})
 
 

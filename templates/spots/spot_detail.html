@@ -3,6 +3,7 @@
 {% block content %}
 <h1>{{ spot.title }}</h1>
 <p>{{ spot.description }}</p>
+<p>Вид грибов: {{ spot.get_mushroom_type_display }}</p>
 <p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> (рейтинг автора: {{ spot.author.profile.rating }})</p>
 <p>Координаты: {{ spot.latitude }}, {{ spot.longitude }}</p>
 <p>Рейтинг места: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок, с учётом веса голосов)</p>
