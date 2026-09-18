@@ -1,12 +1,72 @@
 {% extends 'base.html' %}
+{% load l10n %}
 {% block title %}{{ spot.title }}{% endblock %}
 {% block content %}
 <h1>{{ spot.title }}</h1>
 <p>{{ spot.description }}</p>
-<p>Вид грибов: {{ spot.get_mushroom_type_display }}</p>
+<p>Виды грибов: {% for type in spot.mushroom_types.all %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% empty %}не указаны{% endfor %}</p>
 <p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> (рейтинг автора: {{ spot.author.profile.rating }})</p>
 <p>Координаты: {{ spot.latitude }}, {{ spot.longitude }}</p>
 <p>Рейтинг места: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок, с учётом веса голосов)</p>
+
+<h2>Маршрут до места</h2>
+<p>
+    <button id="use-geolocation">📍 Проложить от моего местоположения</button>
+    — или кликните на карте ниже, чтобы указать точку старта вручную.
+</p>
+<div id="route-map" style="height: 420px; width: 100%;"></div>
+<p id="route-status" style="color: #555;"></p>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+<script>
+    const spotLatLng = [{{ spot.latitude|unlocalize }}, {{ spot.longitude|unlocalize }}];
+    const routeMap = L.map('route-map').setView(spotLatLng, 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+    }).addTo(routeMap);
+
+    L.marker(spotLatLng).addTo(routeMap).bindPopup('{{ spot.title|escapejs }}');
+
+    let routingControl = null;
+    const routeStatus = document.getElementById('route-status');
+
+    function buildRoute(startLatLng) {
+        if (routingControl) {
+            routeMap.removeControl(routingControl);
+        }
+        routingControl = L.Routing.control({
+            waypoints: [
+                L.latLng(startLatLng[0], startLatLng[1]),
+                L.latLng(spotLatLng[0], spotLatLng[1]),
+            ],
+            language: 'ru',
+            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+        }).addTo(routeMap);
+        routingControl.on('routingerror', () => {
+            routeStatus.textContent = 'Не удалось построить маршрут для этой точки старта. Попробуйте другую.';
+        });
+        routeStatus.textContent = '';
+    }
+
+    document.getElementById('use-geolocation').addEventListener('click', () => {
+        if (!navigator.geolocation) {
+            routeStatus.textContent = 'Геолокация не поддерживается вашим браузером.';
+            return;
+        }
+        routeStatus.textContent = 'Определяем ваше местоположение…';
+        navigator.geolocation.getCurrentPosition(
+            pos => buildRoute([pos.coords.latitude, pos.coords.longitude]),
+            err => { routeStatus.textContent = 'Не удалось определить местоположение: ' + err.message; },
+        );
+    });
+
+    routeMap.on('click', e => {
+        buildRoute([e.latlng.lat, e.latlng.lng]);
+    });
+</script>
 
 {% if user.is_authenticated %}
 <form method="post" action="{% url 'spots:spot_rate' spot.pk %}">
@@ -43,6 +103,7 @@
 {% endif %}
 
 {% if user == spot.author %}
+<p><a href="{% url 'spots:spot_edit' spot.pk %}">✏️ Редактировать место</a></p>
 <form method="post" action="{% url 'spots:spot_delete' spot.pk %}" onsubmit="return confirm('Удалить это место без возможности восстановления?');">
     {% csrf_token %}
     <button type="submit">Удалить это место</button>

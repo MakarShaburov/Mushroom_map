@@ -5,19 +5,24 @@ from django.db import models
 from accounts.utils import vote_weight
 
 
+class MushroomType(models.Model):
+    """Вид гриба (справочник). Управляется через /admin/, места
+    могут быть отмечены сразу несколькими видами."""
+
+    code = models.SlugField('Код', max_length=32, unique=True)
+    name = models.CharField('Название', max_length=100)
+
+    class Meta:
+        verbose_name = 'Вид гриба'
+        verbose_name_plural = 'Виды грибов'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class MushroomSpot(models.Model):
     """Грибное место, отмеченное на карте."""
-
-    MUSHROOM_TYPE_CHOICES = [
-        ('white', 'Белый гриб'),
-        ('boletus', 'Подосиновик'),
-        ('birch_bolete', 'Подберёзовик'),
-        ('chanterelle', 'Лисички'),
-        ('honey_fungus', 'Опята'),
-        ('russula', 'Сыроежки'),
-        ('milk_cap', 'Грузди'),
-        ('other', 'Другое'),
-    ]
 
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -27,8 +32,8 @@ class MushroomSpot(models.Model):
     )
     title = models.CharField('Название', max_length=200)
     description = models.TextField('Описание')
-    mushroom_type = models.CharField(
-        'Вид грибов', max_length=32, choices=MUSHROOM_TYPE_CHOICES, default='other',
+    mushroom_types = models.ManyToManyField(
+        MushroomType, related_name='spots', verbose_name='Виды грибов', blank=True,
     )
     latitude = models.FloatField(
         'Широта',

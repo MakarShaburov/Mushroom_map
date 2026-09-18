@@ -8,20 +8,21 @@
         🔍 Поиск
     </button>
 
-    <div id="search-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 280px; background: white; box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
+    <div id="search-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 300px; background: white; box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
         <button id="search-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer;">✕</button>
         <h3 style="margin-top: 0;">Поиск мест</h3>
 
         <label for="search-text">Название</label>
         <input type="text" id="search-text" placeholder="Например: полянка" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;">
 
-        <label for="search-type">Вид грибов</label>
-        <select id="search-type" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;">
-            <option value="">Все виды</option>
-            {% for value, label in mushroom_type_choices %}
-                <option value="{{ value }}">{{ label }}</option>
+        <p style="margin-bottom: 4px;">Виды грибов (можно выбрать несколько)</p>
+        <div id="search-types" style="margin-bottom: 12px;">
+            {% for type in mushroom_types %}
+                <label style="display: block; margin-bottom: 4px;">
+                    <input type="checkbox" class="type-checkbox" value="{{ type.code }}"> {{ type.name }}
+                </label>
             {% endfor %}
-        </select>
+        </div>
 
         <p id="search-count" style="color: #555; font-size: 0.9em;"></p>
 
@@ -42,22 +43,28 @@
 
     function buildPopup(spot) {
         const rating = spot.average_rating !== null ? spot.average_rating : '—';
-        return `<b>${spot.title}</b><br>Автор: ${spot.author}<br>Вид: ${spot.mushroom_type_label}<br>` +
+        return `<b>${spot.title}</b><br>Автор: ${spot.author}<br>Виды: ${spot.mushroom_types_label}<br>` +
                `Рейтинг: ${rating} (${spot.ratings_count})<br>` +
                `<a href="/spots/${spot.id}/">Подробнее</a>`;
     }
 
+    function getSelectedTypes() {
+        return Array.from(document.querySelectorAll('.type-checkbox:checked')).map(cb => cb.value);
+    }
+
     function applyFilters() {
         const text = document.getElementById('search-text').value.trim().toLowerCase();
-        const type = document.getElementById('search-type').value;
+        const selectedTypes = getSelectedTypes();
         let visibleCount = 0;
         const resultsBox = document.getElementById('search-results');
         resultsBox.innerHTML = '';
 
         allSpots.forEach(entry => {
             const matchesText = !text || entry.data.title.toLowerCase().includes(text);
-            const matchesType = !type || entry.data.mushroom_type === type;
-            const visible = matchesText && matchesType;
+            // "ИЛИ": показываем место, если оно содержит хотя бы один из отмеченных видов
+            const matchesTypes = selectedTypes.length === 0 ||
+                entry.data.mushroom_types.some(t => selectedTypes.includes(t));
+            const visible = matchesText && matchesTypes;
 
             if (visible) {
                 if (!map.hasLayer(entry.marker)) entry.marker.addTo(map);
@@ -67,7 +74,7 @@
                 item.style.padding = '6px 0';
                 item.style.borderBottom = '1px solid #eee';
                 item.innerHTML = `<a href="/spots/${entry.data.id}/">${entry.data.title}</a><br>` +
-                                  `<small>${entry.data.mushroom_type_label}</small>`;
+                                  `<small>${entry.data.mushroom_types_label}</small>`;
                 item.style.cursor = 'pointer';
                 item.addEventListener('click', () => {
                     map.setView([entry.data.latitude, entry.data.longitude], 14);
@@ -100,6 +107,6 @@
         document.getElementById('search-panel').style.display = 'none';
     });
     document.getElementById('search-text').addEventListener('input', applyFilters);
-    document.getElementById('search-type').addEventListener('change', applyFilters);
+    document.getElementById('search-types').addEventListener('change', applyFilters);
 </script>
 {% endblock %}

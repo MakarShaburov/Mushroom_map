@@ -10,5 +10,6 @@ urlpatterns = [
     path('spots/new/', views.spot_create, name='spot_create'),
     path('spots/<int:pk>/', views.spot_detail, name='spot_detail'),
     path('spots/<int:pk>/rate/', views.spot_rate, name='spot_rate'),
+    path('spots/<int:pk>/edit/', views.spot_edit, name='spot_edit'),
     path('spots/<int:pk>/delete/', views.spot_delete, name='spot_delete'),
 ]

@@ -9,13 +9,14 @@
     {% csrf_token %}
     <p><label>Название: <input type="text" name="title" required></label></p>
     <p><label>Описание: <textarea name="description"></textarea></label></p>
-    <p><label>Вид грибов:
-        <select name="mushroom_type">
-            {% for value, label in mushroom_type_choices %}
-                <option value="{{ value }}">{{ label }}</option>
-            {% endfor %}
-        </select>
-    </label></p>
+    <p>Виды грибов на этом месте (можно выбрать несколько):</p>
+    <p>
+        {% for type in mushroom_types %}
+            <label style="display: inline-block; margin-right: 12px;">
+                <input type="checkbox" name="mushroom_types" value="{{ type.id }}"> {{ type.name }}
+            </label>
+        {% endfor %}
+    </p>
     <p><label>Широта: <input type="text" name="latitude" id="lat" readonly required></label></p>
     <p><label>Долгота: <input type="text" name="longitude" id="lng" readonly required></label></p>
     <button type="submit">Сохранить</button>
