@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from spots.models import MushroomSpot
+from spots.views import PANEL_HEADER, render_spot_panel_response
 
 from .forms import SignUpForm
 from .models import UserRating
@@ -43,9 +44,9 @@ def rate_user(request, username):
     rated_user = get_object_or_404(User, username=username)
     spot_id = request.POST.get('spot_id')
     score = request.POST.get('score')
+    spot = MushroomSpot.objects.filter(pk=spot_id).first() if spot_id else None
 
     if rated_user != request.user and score and score.isdigit() and 1 <= int(score) <= 5:
-        spot = MushroomSpot.objects.filter(pk=spot_id).first() if spot_id else None
         UserRating.objects.update_or_create(
             rater=request.user,
             rated_user=rated_user,
@@ -53,6 +54,8 @@ def rate_user(request, username):
         )
         rated_user.profile.recalculate_rating()
 
+    if request.headers.get(PANEL_HEADER) and spot:
+        return render_spot_panel_response(request, spot)
     if spot_id:
         return redirect('spots:spot_detail', pk=spot_id)
     return redirect('accounts:profile')

@@ -3,12 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <title>{% block title %}Грибные места{% endblock %}</title>
+    <script>
+        // Применяем сохранённую тему до отрисовки страницы, чтобы избежать
+        // мигания светлой темой перед переключением на тёмную.
+        (function () {
+            var theme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; margin: 0; }
-        nav { padding: 10px 20px; background: #2e5339; color: white; display: flex; gap: 16px; align-items: center; }
-        nav a { color: white; text-decoration: none; }
+        :root {
+            --bg: #ffffff;
+            --text: #1a1a1a;
+            --panel-bg: #ffffff;
+            --border: #e0e0e0;
+            --nav-bg: #2e5339;
+            --nav-text: #ffffff;
+            --link: #2e5339;
+            --muted: #666666;
+        }
+        :root[data-theme="dark"] {
+            --bg: #15191c;
+            --text: #e8e8e8;
+            --panel-bg: #1f2428;
+            --border: #3a3f43;
+            --nav-bg: #1b3323;
+            --nav-text: #f0f0f0;
+            --link: #7fcf9a;
+            --muted: #a0a0a0;
+        }
+        body { font-family: sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+        nav { padding: 10px 20px; background: var(--nav-bg); color: var(--nav-text); display: flex; gap: 16px; align-items: center; }
+        nav a { color: var(--nav-text); text-decoration: none; }
         main { padding: 20px; }
+        a { color: var(--link); }
+        input, select, textarea, button { font-family: inherit; }
     </style>
 </head>
 <body>

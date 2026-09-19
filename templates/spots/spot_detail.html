@@ -4,6 +4,13 @@
 {% block content %}
 <h1>{{ spot.title }}</h1>
 <p>{{ spot.description }}</p>
+{% if spot.photos.all %}
+<div style="display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px;">
+    {% for photo in spot.photos.all %}
+        <img src="{{ photo.image.url }}" alt="Фото места" style="height: 140px; border-radius: 4px; flex-shrink: 0;">
+    {% endfor %}
+</div>
+{% endif %}
 <p>Виды грибов: {% for type in spot.mushroom_types.all %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% empty %}не указаны{% endfor %}</p>
 <p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> (рейтинг автора: {{ spot.author.profile.rating }})</p>
 <p>Координаты: {{ spot.latitude }}, {{ spot.longitude }}</p>
@@ -108,6 +115,46 @@
     {% csrf_token %}
     <button type="submit">Удалить это место</button>
 </form>
+{% endif %}
+
+<h2>Комментарии</h2>
+{% for comment in comments %}
+    <div style="border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px;">
+        <strong>{{ comment.author.username }}</strong>
+        <small style="color: #888;">{{ comment.created_at|date:"d.m.Y H:i" }}</small><br>
+        {{ comment.text }}
+        {% if comment.image %}
+            <br><img src="{{ comment.image.url }}" alt="Фото к комментарию" style="max-height: 200px; border-radius: 4px; margin-top: 6px;">
+        {% endif %}
+        <br>
+        {% if user.is_authenticated %}
+        <form method="post" action="{% url 'spots:comment_vote' comment.pk %}" style="display: inline;">
+            {% csrf_token %}
+            <input type="hidden" name="is_like" value="1">
+            <button type="submit" style="{% if comment.user_vote == True %}font-weight: bold;{% endif %}">👍 {{ comment.likes_count }}</button>
+        </form>
+        <form method="post" action="{% url 'spots:comment_vote' comment.pk %}" style="display: inline;">
+            {% csrf_token %}
+            <input type="hidden" name="is_like" value="0">
+            <button type="submit" style="{% if comment.user_vote == False %}font-weight: bold;{% endif %}">👎 {{ comment.dislikes_count }}</button>
+        </form>
+        {% else %}
+        <span style="color: #888;">👍 {{ comment.likes_count }} · 👎 {{ comment.dislikes_count }}</span>
+        {% endif %}
+    </div>
+{% empty %}
+    <p><em>Комментариев пока нет.</em></p>
+{% endfor %}
+
+{% if user.is_authenticated %}
+<form method="post" action="{% url 'spots:spot_comment_create' spot.pk %}" enctype="multipart/form-data">
+    {% csrf_token %}
+    <textarea name="text" placeholder="Написать комментарий..." style="width: 100%; box-sizing: border-box;" required></textarea>
+    <p><label>Фото к комментарию (необязательно): <input type="file" name="image" accept="image/*"></label></p>
+    <button type="submit">Отправить</button>
+</form>
+{% else %}
+<p><a href="{% url 'accounts:login' %}">Войдите</a>, чтобы оставить комментарий.</p>
 {% endif %}
 
 <p><a href="{% url 'spots:map' %}">← Назад к карте</a></p>

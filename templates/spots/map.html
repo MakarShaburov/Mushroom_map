@@ -7,9 +7,17 @@
     <button id="search-toggle" style="position: absolute; top: 10px; right: 10px; z-index: 1000; padding: 8px 12px; cursor: pointer;">
         🔍 Поиск
     </button>
+    <button id="settings-toggle" style="position: absolute; top: 54px; right: 10px; z-index: 1000; padding: 8px 12px; cursor: pointer;">
+        ⚙️ Настройки
+    </button>
 
-    <div id="search-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 300px; background: white; box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
-        <button id="search-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer;">✕</button>
+    <div id="spot-panel" style="display: none; position: absolute; top: 0; left: 0; height: 100%; width: 510px; background: var(--panel-bg); color: var(--text); box-shadow: 2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
+        <button id="spot-panel-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text);">✕</button>
+        <div id="spot-panel-body">Загрузка…</div>
+    </div>
+
+    <div id="search-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 300px; background: var(--panel-bg); color: var(--text); box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
+        <button id="search-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text);">✕</button>
         <h3 style="margin-top: 0;">Поиск мест</h3>
 
         <label for="search-text">Название</label>
@@ -24,9 +32,21 @@
             {% endfor %}
         </div>
 
-        <p id="search-count" style="color: #555; font-size: 0.9em;"></p>
+        <p id="search-count" style="color: var(--muted); font-size: 0.9em;"></p>
 
         <div id="search-results"></div>
+    </div>
+
+    <div id="settings-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 260px; background: var(--panel-bg); color: var(--text); box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
+        <button id="settings-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text);">✕</button>
+        <h3 style="margin-top: 0;">Настройки</h3>
+        <p style="margin-bottom: 6px;">Тема сайта</p>
+        <label style="display: block; margin-bottom: 6px;">
+            <input type="radio" name="theme" value="light"> Светлая
+        </label>
+        <label style="display: block;">
+            <input type="radio" name="theme" value="dark"> Тёмная
+        </label>
     </div>
 </div>
 
@@ -41,13 +61,68 @@
 
     let allSpots = []; // { data, marker }
 
-    function buildPopup(spot) {
-        const rating = spot.average_rating !== null ? spot.average_rating : '—';
-        return `<b>${spot.title}</b><br>Автор: ${spot.author}<br>Виды: ${spot.mushroom_types_label}<br>` +
-               `Рейтинг: ${rating} (${spot.ratings_count})<br>` +
-               `<a href="/spots/${spot.id}/">Подробнее</a>`;
+    // --- Боковая панель с информацией о месте ---
+    const panel = document.getElementById('spot-panel');
+    const panelBody = document.getElementById('spot-panel-body');
+    let currentPanelSpotId = null;
+
+    function openSpotPanel(spotId) {
+        currentPanelSpotId = spotId;
+        panel.style.display = 'block';
+        panelBody.innerHTML = 'Загрузка…';
+        fetch(`/spots/${spotId}/panel/`)
+            .then(response => response.text())
+            .then(html => { panelBody.innerHTML = html; });
     }
 
+    function closeSpotPanel() {
+        panel.style.display = 'none';
+        currentPanelSpotId = null;
+    }
+
+    document.getElementById('spot-panel-close').addEventListener('click', closeSpotPanel);
+
+    function removeSpotFromMap(spotId) {
+        const idx = allSpots.findIndex(entry => entry.data.id === spotId);
+        if (idx === -1) return;
+        map.removeLayer(allSpots[idx].marker);
+        allSpots.splice(idx, 1);
+        applyFilters();
+    }
+
+    // Перехватываем отправку форм внутри панели (оценка, комментарий, удаление),
+    // чтобы обновлять панель без перезагрузки страницы.
+    panelBody.addEventListener('submit', function (e) {
+        const form = e.target;
+        if (!form.classList.contains('panel-ajax-form')) return;
+        e.preventDefault();
+
+        const isDelete = form.dataset.panelAction === 'delete';
+        if (isDelete && !confirm('Удалить это место без возможности восстановления?')) {
+            return;
+        }
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-Panel-Request': '1' },
+            body: new FormData(form),
+        }).then(async response => {
+            if (isDelete) {
+                if (response.ok) {
+                    removeSpotFromMap(currentPanelSpotId);
+                    closeSpotPanel();
+                } else {
+                    alert('Не удалось удалить это место.');
+                }
+                return;
+            }
+            panelBody.innerHTML = await response.text();
+        }).catch(() => {
+            alert('Не удалось выполнить действие. Попробуйте ещё раз.');
+        });
+    });
+
+    // --- Поиск / фильтр ---
     function getSelectedTypes() {
         return Array.from(document.querySelectorAll('.type-checkbox:checked')).map(cb => cb.value);
     }
@@ -73,12 +148,13 @@
                 const item = document.createElement('div');
                 item.style.padding = '6px 0';
                 item.style.borderBottom = '1px solid #eee';
-                item.innerHTML = `<a href="/spots/${entry.data.id}/">${entry.data.title}</a><br>` +
+                item.innerHTML = `<a href="#">${entry.data.title}</a><br>` +
                                   `<small>${entry.data.mushroom_types_label}</small>`;
                 item.style.cursor = 'pointer';
-                item.addEventListener('click', () => {
+                item.querySelector('a').addEventListener('click', (ev) => {
+                    ev.preventDefault();
                     map.setView([entry.data.latitude, entry.data.longitude], 14);
-                    entry.marker.openPopup();
+                    openSpotPanel(entry.data.id);
                 });
                 resultsBox.appendChild(item);
             } else {
@@ -94,13 +170,15 @@
         .then(data => {
             data.spots.forEach(spot => {
                 const marker = L.marker([spot.latitude, spot.longitude]).addTo(map);
-                marker.bindPopup(buildPopup(spot));
+                marker.bindTooltip(spot.title);
+                marker.on('click', () => openSpotPanel(spot.id));
                 allSpots.push({ data: spot, marker: marker });
             });
             applyFilters();
         });
 
     document.getElementById('search-toggle').addEventListener('click', () => {
+        document.getElementById('settings-panel').style.display = 'none';
         document.getElementById('search-panel').style.display = 'block';
     });
     document.getElementById('search-close').addEventListener('click', () => {
@@ -108,5 +186,26 @@
     });
     document.getElementById('search-text').addEventListener('input', applyFilters);
     document.getElementById('search-types').addEventListener('change', applyFilters);
+
+    // --- Настройки: тема сайта ---
+    const themeRadios = document.querySelectorAll('input[name="theme"]');
+
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+    }
+
+    document.getElementById('settings-toggle').addEventListener('click', () => {
+        document.getElementById('search-panel').style.display = 'none';
+        const currentTheme = localStorage.getItem('theme') || 'light';
+        themeRadios.forEach(radio => { radio.checked = (radio.value === currentTheme); });
+        document.getElementById('settings-panel').style.display = 'block';
+    });
+    document.getElementById('settings-close').addEventListener('click', () => {
+        document.getElementById('settings-panel').style.display = 'none';
+    });
+    themeRadios.forEach(radio => {
+        radio.addEventListener('change', () => applyTheme(radio.value));
+    });
 </script>
 {% endblock %}

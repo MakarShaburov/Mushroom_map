@@ -75,6 +75,89 @@ class MushroomSpot(models.Model):
         return self.ratings.count()
 
 
+def spot_photo_upload_path(instance, filename):
+    return f'spots/{instance.spot_id}/{filename}'
+
+
+def comment_photo_upload_path(instance, filename):
+    return f'comments/{instance.spot_id}/{filename}'
+
+
+class SpotPhoto(models.Model):
+    """Фото, прикреплённое к грибному месту при его создании."""
+
+    spot = models.ForeignKey(
+        MushroomSpot, on_delete=models.CASCADE, related_name='photos',
+    )
+    image = models.ImageField('Фото', upload_to=spot_photo_upload_path)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Фото места'
+        verbose_name_plural = 'Фото мест'
+        ordering = ['uploaded_at']
+
+    def __str__(self):
+        return f'Фото {self.spot}'
+
+
+class SpotComment(models.Model):
+    """Комментарий пользователя к грибному месту, может быть с фото."""
+
+    spot = models.ForeignKey(
+        MushroomSpot, on_delete=models.CASCADE, related_name='comments',
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='spot_comments',
+    )
+    text = models.TextField('Комментарий', max_length=2000)
+    image = models.ImageField(
+        'Фото', upload_to=comment_photo_upload_path, blank=True, null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Комментарий'
+        verbose_name_plural = 'Комментарии'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'{self.author} @ {self.spot}: {self.text[:30]}'
+
+    @property
+    def likes_count(self):
+        return self.votes.filter(is_like=True).count()
+
+    @property
+    def dislikes_count(self):
+        return self.votes.filter(is_like=False).count()
+
+
+class CommentVote(models.Model):
+    """Лайк/дизлайк комментария пользователем. Один голос на пару
+    (комментарий, пользователь), повторное нажатие той же кнопки
+    убирает голос."""
+
+    comment = models.ForeignKey(
+        SpotComment, on_delete=models.CASCADE, related_name='votes',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comment_votes',
+    )
+    is_like = models.BooleanField('Лайк')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Голос за комментарий'
+        verbose_name_plural = 'Голоса за комментарии'
+        constraints = [
+            models.UniqueConstraint(fields=['comment', 'user'], name='unique_vote_per_user_comment'),
+        ]
+
+    def __str__(self):
+        return f'{self.user} -> comment {self.comment_id}: {"👍" if self.is_like else "👎"}'
+
+
 class SpotRating(models.Model):
     """Оценка грибного места пользователем (1-5)."""
 
