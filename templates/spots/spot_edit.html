@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Редактировать место{% endblock %}
+{% block content %}
+<h1>Редактировать место</h1>
+<p>Координаты места изменить нельзя — если место отмечено не там, удалите его и добавьте заново.</p>
+
+<form method="post">
+    {% csrf_token %}
+    <p><label>Название: <input type="text" name="title" value="{{ spot.title }}" required></label></p>
+    <p><label>Описание: <textarea name="description">{{ spot.description }}</textarea></label></p>
+    <p>Виды грибов на этом месте (можно выбрать несколько):</p>
+    <p>
+        {% for type in mushroom_types %}
+            <label style="display: inline-block; margin-right: 12px;">
+                <input type="checkbox" name="mushroom_types" value="{{ type.id }}" {% if type.id in selected_type_ids %}checked{% endif %}> {{ type.name }}
+            </label>
+        {% endfor %}
+    </p>
+    <button type="submit">Сохранить изменения</button>
+</form>
+
+<p><a href="{% url 'spots:spot_detail' spot.pk %}">← Назад к месту</a></p>
+{% endblock %}

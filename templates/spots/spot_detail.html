@@ -31,8 +31,10 @@
     const spotLatLng = [{{ spot.latitude|unlocalize }}, {{ spot.longitude|unlocalize }}];
     const routeMap = L.map('route-map').setView(spotLatLng, 11);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap',
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key={{ carto_api_key }}', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 20,
     }).addTo(routeMap);
 
     L.marker(spotLatLng).addTo(routeMap).bindPopup('{{ spot.title|escapejs }}');

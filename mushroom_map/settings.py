@@ -10,8 +10,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / '.env')
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,7 +25,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-8$!#b$@ly4-zpmm9g*&#cd7o-!1w(ao*2!x59mqsg3k5ay%&2s'
+SECRET_KEY = os.environ['SECRET_KEY']
+CARTO_API_KEY = os.environ.get('CARTO_API_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -63,6 +69,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'mushroom_map.context_processors.carto_api_key',
             ],
         },
     },
@@ -127,6 +134,15 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'spots:map'
 LOGOUT_REDIRECT_URL = 'spots:map'
+
+
+# Тайлы карты (CARTO Basemaps)
+# OpenStreetMap отдаёт "сырые" тайлы напрямую с волонтёрских серверов и
+# блокирует IP, если решит, что приложение нарушает их usage policy —
+# именно это и произошло. CARTO — надёжная альтернатива на основе тех же
+# данных OSM, с 2026 года тоже требует ключ, но он бесплатный и выдаётся
+# без регистрации: https://carto.com/basemaps/apikey/ (лимит 5 млн
+# тайлов/месяц). Получите ключ и вставьте его сюда.
 
 
 # Email

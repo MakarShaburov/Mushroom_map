@@ -1,0 +1,98 @@
+{% load l10n %}
+<div data-spot-id="{{ spot.pk }}" data-spot-lat="{{ spot.latitude|unlocalize }}" data-spot-lng="{{ spot.longitude|unlocalize }}">
+    <h2 style="margin-top: 0;">{{ spot.title }}</h2>
+    <p>{{ spot.description }}</p>
+    {% if spot.photos.all %}
+    <div style="display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px;">
+        {% for photo in spot.photos.all %}
+            <img src="{{ photo.image.url }}" alt="Фото места" style="height: 90px; border-radius: 4px; flex-shrink: 0;">
+        {% endfor %}
+    </div>
+    {% endif %}
+    <p>Виды грибов: {% for type in spot.mushroom_types.all %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% empty %}не указаны{% endfor %}</p>
+    <p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> (рейтинг автора: {{ spot.author.profile.rating }})</p>
+    <p>Координаты: {{ spot.latitude }}, {{ spot.longitude }}</p>
+    <p>Рейтинг места: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок, с учётом веса голосов)</p>
+    <p><a href="{% url 'spots:spot_detail' spot.pk %}">🗺 Открыть отдельно (с построением маршрута) →</a></p>
+
+    {% if user.is_authenticated %}
+    <form method="post" action="{% url 'spots:spot_rate' spot.pk %}" class="panel-ajax-form">
+        {% csrf_token %}
+        <label for="panel-score-{{ spot.pk }}">Ваша оценка места (1-5):</label>
+        <select name="score" id="panel-score-{{ spot.pk }}">
+            {% for i in "12345" %}
+                <option value="{{ i }}">{{ i }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Оценить место</button>
+    </form>
+    {% endif %}
+
+    <h3>Оценить автора места</h3>
+    <p>Рейтинг пользователя {{ spot.author.username }}: {{ spot.author.profile.rating }}</p>
+    {% if user.is_authenticated and user != spot.author %}
+    <form method="post" action="{% url 'accounts:rate_user' spot.author.username %}" class="panel-ajax-form">
+        {% csrf_token %}
+        <input type="hidden" name="spot_id" value="{{ spot.pk }}">
+        <label for="panel-user-score-{{ spot.pk }}">
+            {% if user_rating_given %}Изменить вашу оценку{% else %}Ваша оценка пользователю{% endif %} (1-5):
+        </label>
+        <select name="score" id="panel-user-score-{{ spot.pk }}">
+            {% for i in "12345" %}
+                <option value="{{ i }}" {% if user_rating_given and user_rating_given.score|stringformat:"s" == i %}selected{% endif %}>{{ i }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Оценить пользователя</button>
+    </form>
+    {% elif user == spot.author %}
+    <p><em>Нельзя оценить самого себя.</em></p>
+    {% endif %}
+
+    {% if user == spot.author %}
+    <p><a href="{% url 'spots:spot_edit' spot.pk %}">✏️ Редактировать место</a></p>
+    <form method="post" action="{% url 'spots:spot_delete' spot.pk %}" class="panel-ajax-form" data-panel-action="delete">
+        {% csrf_token %}
+        <button type="submit">Удалить это место</button>
+    </form>
+    {% endif %}
+
+    <h3>Комментарии</h3>
+    {% for comment in comments %}
+        <div style="border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px;">
+            <strong>{{ comment.author.username }}</strong>
+            <small style="color: #888;">{{ comment.created_at|date:"d.m.Y H:i" }}</small><br>
+            {{ comment.text }}
+            {% if comment.image %}
+                <br><img src="{{ comment.image.url }}" alt="Фото к комментарию" style="max-height: 140px; border-radius: 4px; margin-top: 6px;">
+            {% endif %}
+            <br>
+            {% if user.is_authenticated %}
+            <form method="post" action="{% url 'spots:comment_vote' comment.pk %}" class="panel-ajax-form" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="is_like" value="1">
+                <button type="submit" style="{% if comment.user_vote == True %}font-weight: bold;{% endif %}">👍 {{ comment.likes_count }}</button>
+            </form>
+            <form method="post" action="{% url 'spots:comment_vote' comment.pk %}" class="panel-ajax-form" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="is_like" value="0">
+                <button type="submit" style="{% if comment.user_vote == False %}font-weight: bold;{% endif %}">👎 {{ comment.dislikes_count }}</button>
+            </form>
+            {% else %}
+            <span style="color: #888;">👍 {{ comment.likes_count }} · 👎 {{ comment.dislikes_count }}</span>
+            {% endif %}
+        </div>
+    {% empty %}
+        <p><em>Комментариев пока нет.</em></p>
+    {% endfor %}
+
+    {% if user.is_authenticated %}
+    <form method="post" action="{% url 'spots:spot_comment_create' spot.pk %}" enctype="multipart/form-data" class="panel-ajax-form">
+        {% csrf_token %}
+        <textarea name="text" placeholder="Написать комментарий..." style="width: 100%; box-sizing: border-box;" required></textarea>
+        <p><label>Фото к комментарию (необязательно): <input type="file" name="image" accept="image/*"></label></p>
+        <button type="submit">Отправить</button>
+    </form>
+    {% else %}
+    <p><a href="{% url 'accounts:login' %}">Войдите</a>, чтобы оставить комментарий.</p>
+    {% endif %}
+</div>

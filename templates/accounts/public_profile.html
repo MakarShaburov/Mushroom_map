@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}{{ person.username }}{% endblock %}
+{% block content %}
+<h1>{{ person.username }}</h1>
+<p>Рейтинг пользователя: {{ person.profile.rating }} (оценок получено: {{ ratings_received }})</p>
+<h2>Места, добавленные этим пользователем</h2>
+<ul>
+{% for spot in person.spots.all %}
+    <li><a href="{% url 'spots:spot_detail' spot.pk %}">{{ spot.title }}</a> — рейтинг места {{ spot.average_rating|default:"—" }}</li>
+{% empty %}
+    <li>Пользователь пока не добавил ни одного места.</li>
+{% endfor %}
+</ul>
+<p><a href="{% url 'spots:map' %}">← Назад к карте</a></p>
+{% endblock %}
