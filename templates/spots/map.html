@@ -1,13 +1,80 @@
 {% extends 'base.html' %}
 {% block title %}Карта грибных мест{% endblock %}
 {% block content %}
+<style>
+    .search-panel {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 300px;
+        max-width: calc(100% - 20px);
+        max-height: calc(100% - 20px);
+        background: var(--panel-bg);
+        color: var(--text);
+        border-radius: 14px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .search-panel-toggle {
+        position: absolute;
+        top: 16px;
+        left: -32px;
+        width: 28px;
+        height: 28px;
+        border: none;
+        border-radius: 6px;
+        background: var(--panel-bg);
+        color: var(--text);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 28px;
+        padding: 0;
+    }
+    #search-panel-header {
+        padding: 12px;
+        flex-shrink: 0;
+    }
+    .search-input-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 8px 14px;
+        box-sizing: border-box;
+    }
+    .search-input-wrap .search-icon {
+        flex-shrink: 0;
+    }
+    .search-input-wrap input {
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--text);
+        flex: 1;
+        min-width: 0;
+        font-size: 14px;
+    }
+    #search-panel-body {
+        padding: 0 12px 12px 12px;
+        overflow-y: auto;
+    }
+    .search-panel.collapsed #search-panel-body {
+        display: none;
+    }
+    .search-panel.collapsed {
+        max-height: none;
+    }
+</style>
 <div style="position: relative;">
     <div id="map" style="height: 80vh; width: 100%;"></div>
 
-    <button id="search-toggle" style="position: absolute; top: 10px; right: 10px; z-index: 1000; padding: 8px 12px; cursor: pointer;">
-        🔍 Поиск
-    </button>
-    <button id="settings-toggle" style="position: absolute; top: 54px; right: 10px; z-index: 1000; padding: 8px 12px; cursor: pointer;">
+    <button id="settings-toggle" style="position: absolute; top: 10px; left: 10px; z-index: 1000; padding: 8px 12px; cursor: pointer;">
         ⚙️ Настройки
     </button>
 
@@ -16,25 +83,30 @@
         <div id="spot-panel-body">Загрузка…</div>
     </div>
 
-    <div id="search-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 300px; background: var(--panel-bg); color: var(--text); box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
-        <button id="search-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text);">✕</button>
-        <h3 style="margin-top: 0;">Поиск мест</h3>
+    <div id="search-panel" class="search-panel">
+        <button id="search-panel-toggle" class="search-panel-toggle" title="Свернуть/развернуть панель поиска">◄</button>
 
-        <label for="search-text">Название</label>
-        <input type="text" id="search-text" placeholder="Например: полянка" style="width: 100%; box-sizing: border-box; margin-bottom: 12px;">
-
-        <p style="margin-bottom: 4px;">Виды грибов (можно выбрать несколько)</p>
-        <div id="search-types" style="margin-bottom: 12px;">
-            {% for type in mushroom_types %}
-                <label style="display: block; margin-bottom: 4px;">
-                    <input type="checkbox" class="type-checkbox" value="{{ type.code }}"> {{ type.name }}
-                </label>
-            {% endfor %}
+        <div id="search-panel-header">
+            <div class="search-input-wrap">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="search-text" placeholder="Поиск и выбор мест">
+            </div>
         </div>
 
-        <p id="search-count" style="color: var(--muted); font-size: 0.9em;"></p>
+        <div id="search-panel-body">
+            <p style="margin-bottom: 4px;">Виды грибов (можно выбрать несколько)</p>
+            <div id="search-types" style="margin-bottom: 12px;">
+                {% for type in mushroom_types %}
+                    <label style="display: block; margin-bottom: 4px;">
+                        <input type="checkbox" class="type-checkbox" value="{{ type.code }}"> {{ type.name }}
+                    </label>
+                {% endfor %}
+            </div>
 
-        <div id="search-results"></div>
+            <p id="search-count" style="color: var(--muted); font-size: 0.9em;"></p>
+
+            <div id="search-results"></div>
+        </div>
     </div>
 
     <div id="settings-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 260px; background: var(--panel-bg); color: var(--text); box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
@@ -178,13 +250,22 @@
             applyFilters();
         });
 
-    document.getElementById('search-toggle').addEventListener('click', () => {
-        document.getElementById('settings-panel').style.display = 'none';
-        document.getElementById('search-panel').style.display = 'block';
+    // --- Сворачивание/разворачивание панели поиска ---
+    const searchPanel = document.getElementById('search-panel');
+    const searchPanelToggle = document.getElementById('search-panel-toggle');
+
+    function setSearchPanelCollapsed(collapsed) {
+        searchPanel.classList.toggle('collapsed', collapsed);
+        searchPanelToggle.textContent = collapsed ? '►' : '◄';
+        localStorage.setItem('searchPanelCollapsed', collapsed ? '1' : '0');
+    }
+
+    setSearchPanelCollapsed(localStorage.getItem('searchPanelCollapsed') === '1');
+
+    searchPanelToggle.addEventListener('click', () => {
+        setSearchPanelCollapsed(!searchPanel.classList.contains('collapsed'));
     });
-    document.getElementById('search-close').addEventListener('click', () => {
-        document.getElementById('search-panel').style.display = 'none';
-    });
+
     document.getElementById('search-text').addEventListener('input', applyFilters);
     document.getElementById('search-types').addEventListener('change', applyFilters);
 
@@ -197,7 +278,6 @@
     }
 
     document.getElementById('settings-toggle').addEventListener('click', () => {
-        document.getElementById('search-panel').style.display = 'none';
         const currentTheme = localStorage.getItem('theme') || 'light';
         themeRadios.forEach(radio => { radio.checked = (radio.value === currentTheme); });
         document.getElementById('settings-panel').style.display = 'block';
