@@ -120,6 +120,81 @@
         display: block;
         margin-bottom: 8px;
     }
+    .route-field-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+    .route-field-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .route-field-dot-from { background: #e74c3c; }
+    .route-field-dot-to { background: var(--text); }
+    .route-field-input {
+        flex: 1;
+        min-width: 0;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 14px;
+        cursor: pointer;
+    }
+    .route-field-input.picking {
+        border-color: var(--link);
+        box-shadow: 0 0 0 2px var(--link);
+    }
+    .route-picker-menu {
+        margin: 4px 0 10px;
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+    }
+    .route-picker-option {
+        display: block;
+        width: 100%;
+        text-align: left;
+        padding: 6px 4px;
+        border: none;
+        background: none;
+        color: var(--text);
+        cursor: pointer;
+        font-size: 14px;
+    }
+    .route-picker-option:hover {
+        text-decoration: underline;
+    }
+    .route-picker-hint {
+        margin: 4px 4px 0;
+        color: var(--muted);
+        font-size: 0.85em;
+    }
+    .route-status {
+        margin: 4px 0 10px;
+        color: var(--muted);
+        font-size: 0.9em;
+        min-height: 1.2em;
+    }
+    .route-reset-btn {
+        border: none;
+        background: none;
+        color: var(--link);
+        cursor: pointer;
+        padding: 0;
+        font-size: 0.9em;
+        text-decoration: underline;
+    }
+    /* Стандартную панель пошаговых инструкций Routing Machine не показываем —
+       расстояние/время выводим в своей панели поиска (#route-status). */
+    .leaflet-routing-container {
+        display: none;
+    }
 </style>
 <div style="position: relative;">
     <div id="map" style="height: 80vh; width: 100%;"></div>
@@ -134,6 +209,7 @@
     </div>
 
     <div class="search-panel-tabs">
+        <button id="search-route-toggle" class="search-panel-tab-btn" title="Проложить маршрут">🧭</button>
         <button id="search-filter-toggle" class="search-panel-tab-btn" title="Фильтры по видам грибов">🎚</button>
         <button id="search-panel-toggle" class="search-panel-tab-btn" title="Свернуть/развернуть панель поиска">◄</button>
     </div>
@@ -170,6 +246,26 @@
                     {% endfor %}
                 </div>
             </div>
+
+            <div id="search-route-view" style="display: none;">
+                <div class="route-field-row">
+                    <span class="route-field-dot route-field-dot-from"></span>
+                    <input type="text" id="route-from-input" class="route-field-input" placeholder="Откуда" readonly>
+                </div>
+                <div class="route-field-row">
+                    <span class="route-field-dot route-field-dot-to"></span>
+                    <input type="text" id="route-to-input" class="route-field-input" placeholder="Куда" readonly>
+                </div>
+
+                <div id="route-picker-menu" class="route-picker-menu" style="display: none;">
+                    <button type="button" id="route-my-location" class="route-picker-option">📍 Моё местоположение</button>
+                    <p class="route-picker-hint">Или кликните по карте, либо по метке гриба</p>
+                </div>
+
+                <p id="route-status" class="route-status"></p>
+
+                <button type="button" id="route-reset" class="route-reset-btn">Сбросить маршрут</button>
+            </div>
         </div>
     </div>
 
@@ -187,6 +283,8 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+<script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 <script>
     const map = L.map('map').setView([55.75, 37.62], 10); // старт: Москва и область
 
@@ -309,7 +407,13 @@
             data.spots.forEach(spot => {
                 const marker = L.marker([spot.latitude, spot.longitude]).addTo(map);
                 marker.bindTooltip(spot.title);
-                marker.on('click', () => openSpotPanel(spot.id));
+                marker.on('click', () => {
+                    if (routePickingField) {
+                        setRoutePoint(routePickingField, { lat: spot.latitude, lng: spot.longitude, label: spot.title });
+                        return;
+                    }
+                    openSpotPanel(spot.id);
+                });
                 allSpots.push({ data: spot, marker: marker });
             });
             applyFilters();
@@ -331,30 +435,150 @@
         setSearchPanelCollapsed(!searchPanel.classList.contains('collapsed'));
     });
 
-    // --- Переключение "Места" / "Фильтры" внутри панели ---
+    // --- Переключение "Места" / "Фильтры" / "Маршрут" внутри панели ---
     const searchFilterToggle = document.getElementById('search-filter-toggle');
-    const searchResultsView = document.getElementById('search-results-view');
-    const searchFiltersView = document.getElementById('search-filters-view');
+    const searchRouteToggle = document.getElementById('search-route-toggle');
+    const views = {
+        results: document.getElementById('search-results-view'),
+        filters: document.getElementById('search-filters-view'),
+        route: document.getElementById('search-route-view'),
+    };
     const filtersClose = document.getElementById('filters-close');
     const filtersReset = document.getElementById('filters-reset');
+    let currentView = 'results';
 
-    function showFiltersView() {
+    function showView(name) {
+        currentView = name;
+        Object.entries(views).forEach(([key, el]) => {
+            el.style.display = key === name ? 'block' : 'none';
+        });
+        searchRouteToggle.textContent = name === 'route' ? '✕' : '🧭';
+        searchRouteToggle.classList.toggle('active', name === 'route');
+        if (name !== 'route') {
+            routePickingField = null;
+            document.getElementById('route-picker-menu').style.display = 'none';
+            updateRouteFieldHighlight();
+        }
+    }
+
+    searchFilterToggle.addEventListener('click', () => {
         setSearchPanelCollapsed(false);
-        searchResultsView.style.display = 'none';
-        searchFiltersView.style.display = 'block';
-    }
-
-    function showResultsView() {
-        searchFiltersView.style.display = 'none';
-        searchResultsView.style.display = 'block';
-    }
-
-    searchFilterToggle.addEventListener('click', showFiltersView);
-    filtersClose.addEventListener('click', showResultsView);
+        showView('filters');
+    });
+    filtersClose.addEventListener('click', () => showView('results'));
     filtersReset.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.type-checkbox:checked').forEach(cb => { cb.checked = false; });
         applyFilters();
+    });
+    searchRouteToggle.addEventListener('click', () => {
+        if (currentView === 'route') {
+            showView('results');
+        } else {
+            setSearchPanelCollapsed(false);
+            showView('route');
+        }
+    });
+
+    // --- Построение маршрута между двумя точками прямо на основной карте ---
+    let routingControl = null;
+    let routeFrom = null;
+    let routeTo = null;
+    let routePickingField = null; // 'from' | 'to' | null — какое поле сейчас выбирается
+
+    const routeFromInput = document.getElementById('route-from-input');
+    const routeToInput = document.getElementById('route-to-input');
+    const routePickerMenu = document.getElementById('route-picker-menu');
+    const routeStatus = document.getElementById('route-status');
+
+    function updateRouteFieldHighlight() {
+        routeFromInput.classList.toggle('picking', routePickingField === 'from');
+        routeToInput.classList.toggle('picking', routePickingField === 'to');
+    }
+
+    function armRouteField(field) {
+        routePickingField = (routePickingField === field) ? null : field;
+        routePickerMenu.style.display = routePickingField ? 'block' : 'none';
+        updateRouteFieldHighlight();
+    }
+
+    routeFromInput.addEventListener('click', () => armRouteField('from'));
+    routeToInput.addEventListener('click', () => armRouteField('to'));
+
+    function buildMainRoute() {
+        if (routingControl) {
+            map.removeControl(routingControl);
+            routingControl = null;
+        }
+        routeStatus.textContent = 'Строим маршрут…';
+        routingControl = L.Routing.control({
+            waypoints: [
+                L.latLng(routeFrom.lat, routeFrom.lng),
+                L.latLng(routeTo.lat, routeTo.lng),
+            ],
+            language: 'ru',
+            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+        }).addTo(map);
+        routingControl.on('routesfound', (e) => {
+            const summary = e.routes[0].summary;
+            const km = (summary.totalDistance / 1000).toFixed(1);
+            const min = Math.round(summary.totalTime / 60);
+            routeStatus.textContent = `${km} км, ≈ ${min} мин`;
+        });
+        routingControl.on('routingerror', () => {
+            routeStatus.textContent = 'Не удалось построить маршрут для этих точек.';
+        });
+    }
+
+    function setRoutePoint(field, point) {
+        if (field === 'from') {
+            routeFrom = point;
+            routeFromInput.value = point.label;
+        } else {
+            routeTo = point;
+            routeToInput.value = point.label;
+        }
+        routePickingField = null;
+        routePickerMenu.style.display = 'none';
+        updateRouteFieldHighlight();
+        if (routeFrom && routeTo) buildMainRoute();
+    }
+
+    map.on('click', (e) => {
+        if (!routePickingField) return;
+        setRoutePoint(routePickingField, {
+            lat: e.latlng.lat,
+            lng: e.latlng.lng,
+            label: `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`,
+        });
+    });
+
+    document.getElementById('route-my-location').addEventListener('click', () => {
+        if (!routePickingField) return;
+        if (!navigator.geolocation) {
+            routeStatus.textContent = 'Геолокация не поддерживается вашим браузером.';
+            return;
+        }
+        const field = routePickingField;
+        navigator.geolocation.getCurrentPosition(
+            pos => setRoutePoint(field, { lat: pos.coords.latitude, lng: pos.coords.longitude, label: 'Моё местоположение' }),
+            err => { routeStatus.textContent = 'Не удалось определить местоположение: ' + err.message; },
+        );
+    });
+
+    document.getElementById('route-reset').addEventListener('click', () => {
+        routeFrom = null;
+        routeTo = null;
+        routePickingField = null;
+        routeFromInput.value = '';
+        routeToInput.value = '';
+        routeStatus.textContent = '';
+        routePickerMenu.style.display = 'none';
+        updateRouteFieldHighlight();
+        if (routingControl) {
+            map.removeControl(routingControl);
+            routingControl = null;
+        }
     });
 
     // --- Строка поиска: ввод текста и кнопка очистки ---
