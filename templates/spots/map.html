@@ -18,21 +18,30 @@
         flex-direction: column;
         overflow: hidden;
     }
-    .search-panel-toggle {
+    .search-panel-tabs {
         position: absolute;
-        top: 16px;
-        left: -32px;
-        width: 28px;
-        height: 28px;
+        top: 22px;
+        right: 318px;
+        z-index: 1001;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .search-panel-tab-btn {
+        width: 32px;
+        height: 32px;
         border: none;
-        border-radius: 6px;
+        border-radius: 8px;
         background: var(--panel-bg);
         color: var(--text);
         box-shadow: 0 1px 4px rgba(0,0,0,0.3);
         cursor: pointer;
-        font-size: 13px;
-        line-height: 28px;
+        font-size: 14px;
+        line-height: 32px;
         padding: 0;
+    }
+    .search-panel-tab-btn.active {
+        box-shadow: 0 0 0 2px var(--link);
     }
     #search-panel-header {
         padding: 12px;
@@ -60,6 +69,15 @@
         min-width: 0;
         font-size: 14px;
     }
+    .search-clear-btn {
+        flex-shrink: 0;
+        border: none;
+        background: none;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 14px;
+        padding: 0;
+    }
     #search-panel-body {
         padding: 0 12px 12px 12px;
         overflow-y: auto;
@@ -69,6 +87,38 @@
     }
     .search-panel.collapsed {
         max-height: none;
+    }
+    .search-panel-label {
+        margin: 0 0 4px;
+        color: var(--muted);
+        font-size: 0.85em;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+    .filters-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    .filters-header strong {
+        margin-right: 10px;
+    }
+    #filters-reset {
+        font-size: 0.9em;
+    }
+    .filters-close-btn {
+        border: none;
+        background: none;
+        color: var(--text);
+        font-size: 16px;
+        cursor: pointer;
+        padding: 0;
+    }
+    .filter-checkbox-row {
+        display: block;
+        margin-bottom: 8px;
     }
 </style>
 <div style="position: relative;">
@@ -83,29 +133,43 @@
         <div id="spot-panel-body">Загрузка…</div>
     </div>
 
-    <div id="search-panel" class="search-panel">
-        <button id="search-panel-toggle" class="search-panel-toggle" title="Свернуть/развернуть панель поиска">◄</button>
+    <div class="search-panel-tabs">
+        <button id="search-filter-toggle" class="search-panel-tab-btn" title="Фильтры по видам грибов">🎚</button>
+        <button id="search-panel-toggle" class="search-panel-tab-btn" title="Свернуть/развернуть панель поиска">◄</button>
+    </div>
 
+    <div id="search-panel" class="search-panel">
         <div id="search-panel-header">
             <div class="search-input-wrap">
                 <span class="search-icon">🔍</span>
                 <input type="text" id="search-text" placeholder="Поиск и выбор мест">
+                <button type="button" id="search-clear" class="search-clear-btn" style="display: none;" title="Очистить">✕</button>
             </div>
         </div>
 
         <div id="search-panel-body">
-            <p style="margin-bottom: 4px;">Виды грибов (можно выбрать несколько)</p>
-            <div id="search-types" style="margin-bottom: 12px;">
-                {% for type in mushroom_types %}
-                    <label style="display: block; margin-bottom: 4px;">
-                        <input type="checkbox" class="type-checkbox" value="{{ type.code }}"> {{ type.name }}
-                    </label>
-                {% endfor %}
+            <div id="search-results-view">
+                <p class="search-panel-label">Места</p>
+                <p id="search-count" style="color: var(--muted); font-size: 0.9em;"></p>
+                <div id="search-results"></div>
             </div>
 
-            <p id="search-count" style="color: var(--muted); font-size: 0.9em;"></p>
-
-            <div id="search-results"></div>
+            <div id="search-filters-view" style="display: none;">
+                <div class="filters-header">
+                    <div>
+                        <strong>Фильтры</strong>
+                        <a href="#" id="filters-reset">Сбросить</a>
+                    </div>
+                    <button type="button" id="filters-close" class="filters-close-btn" title="Закрыть фильтры">✕</button>
+                </div>
+                <div id="search-types">
+                    {% for type in mushroom_types %}
+                        <label class="filter-checkbox-row">
+                            <input type="checkbox" class="type-checkbox" value="{{ type.code }}"> {{ type.name }}
+                        </label>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
     </div>
 
@@ -236,6 +300,7 @@
         });
 
         document.getElementById('search-count').textContent = `Найдено мест: ${visibleCount}`;
+        document.getElementById('search-filter-toggle').classList.toggle('active', selectedTypes.length > 0);
     }
 
     fetch("{% url 'spots:spots_api' %}")
@@ -266,7 +331,47 @@
         setSearchPanelCollapsed(!searchPanel.classList.contains('collapsed'));
     });
 
-    document.getElementById('search-text').addEventListener('input', applyFilters);
+    // --- Переключение "Места" / "Фильтры" внутри панели ---
+    const searchFilterToggle = document.getElementById('search-filter-toggle');
+    const searchResultsView = document.getElementById('search-results-view');
+    const searchFiltersView = document.getElementById('search-filters-view');
+    const filtersClose = document.getElementById('filters-close');
+    const filtersReset = document.getElementById('filters-reset');
+
+    function showFiltersView() {
+        setSearchPanelCollapsed(false);
+        searchResultsView.style.display = 'none';
+        searchFiltersView.style.display = 'block';
+    }
+
+    function showResultsView() {
+        searchFiltersView.style.display = 'none';
+        searchResultsView.style.display = 'block';
+    }
+
+    searchFilterToggle.addEventListener('click', showFiltersView);
+    filtersClose.addEventListener('click', showResultsView);
+    filtersReset.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.querySelectorAll('.type-checkbox:checked').forEach(cb => { cb.checked = false; });
+        applyFilters();
+    });
+
+    // --- Строка поиска: ввод текста и кнопка очистки ---
+    const searchTextInput = document.getElementById('search-text');
+    const searchClear = document.getElementById('search-clear');
+
+    searchTextInput.addEventListener('input', () => {
+        searchClear.style.display = searchTextInput.value ? 'inline-block' : 'none';
+        applyFilters();
+    });
+    searchClear.addEventListener('click', () => {
+        searchTextInput.value = '';
+        searchClear.style.display = 'none';
+        applyFilters();
+        searchTextInput.focus();
+    });
+
     document.getElementById('search-types').addEventListener('change', applyFilters);
 
     // --- Настройки: тема сайта ---
