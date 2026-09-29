@@ -195,6 +195,34 @@
     .leaflet-routing-container {
         display: none;
     }
+    .map-context-menu {
+        position: fixed;
+        z-index: 2000;
+        background: var(--panel-bg);
+        color: var(--text);
+        border-radius: 10px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+        padding: 6px;
+        min-width: 200px;
+    }
+    .map-context-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        box-sizing: border-box;
+        text-align: left;
+        padding: 8px 10px;
+        border: none;
+        background: none;
+        color: var(--text);
+        cursor: pointer;
+        font-size: 14px;
+        border-radius: 6px;
+    }
+    .map-context-menu-item:hover {
+        background: var(--border);
+    }
 </style>
 <div style="position: relative;">
     <div id="map" style="height: 80vh; width: 100%;"></div>
@@ -279,6 +307,12 @@
         <label style="display: block;">
             <input type="radio" name="theme" value="dark"> Тёмная
         </label>
+    </div>
+
+    <div id="map-context-menu" class="map-context-menu" style="display: none;">
+        <button type="button" class="map-context-menu-item" data-action="add-spot">📍 Добавить объект</button>
+        <button type="button" class="map-context-menu-item" data-action="route-to">⬇️ Маршрут сюда</button>
+        <button type="button" class="map-context-menu-item" data-action="route-from">⬆️ Маршрут отсюда</button>
     </div>
 </div>
 
@@ -579,6 +613,65 @@
             map.removeControl(routingControl);
             routingControl = null;
         }
+    });
+
+    // --- Контекстное меню по правому клику на карте ---
+    const mapContextMenu = document.getElementById('map-context-menu');
+    let contextMenuLatLng = null;
+
+    function closeMapContextMenu() {
+        mapContextMenu.style.display = 'none';
+        contextMenuLatLng = null;
+    }
+
+    map.on('contextmenu', (e) => {
+        e.originalEvent.preventDefault();
+        contextMenuLatLng = e.latlng;
+        mapContextMenu.style.left = e.originalEvent.clientX + 'px';
+        mapContextMenu.style.top = e.originalEvent.clientY + 'px';
+        mapContextMenu.style.display = 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+        if (mapContextMenu.style.display === 'block' && !mapContextMenu.contains(e.target)) {
+            closeMapContextMenu();
+        }
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMapContextMenu();
+    });
+    map.on('movestart zoomstart dragstart', closeMapContextMenu);
+
+    function contextMenuPointLabel(latlng) {
+        return `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+    }
+
+    document.querySelector('[data-action="add-spot"]').addEventListener('click', () => {
+        if (!contextMenuLatLng) return;
+        const url = "{% url 'spots:spot_create' %}" +
+            `?lat=${contextMenuLatLng.lat}&lng=${contextMenuLatLng.lng}`;
+        closeMapContextMenu();
+        window.location.href = url;
+    });
+
+    document.querySelector('[data-action="route-to"]').addEventListener('click', () => {
+        if (!contextMenuLatLng) return;
+        const point = { lat: contextMenuLatLng.lat, lng: contextMenuLatLng.lng, label: contextMenuPointLabel(contextMenuLatLng) };
+        closeMapContextMenu();
+        setSearchPanelCollapsed(false);
+        showView('route');
+        setRoutePoint('to', point);
+        armRouteField('from');
+    });
+
+    document.querySelector('[data-action="route-from"]').addEventListener('click', () => {
+        if (!contextMenuLatLng) return;
+        const point = { lat: contextMenuLatLng.lat, lng: contextMenuLatLng.lng, label: contextMenuPointLabel(contextMenuLatLng) };
+        closeMapContextMenu();
+        setSearchPanelCollapsed(false);
+        showView('route');
+        setRoutePoint('from', point);
+        armRouteField('to');
     });
 
     // --- Строка поиска: ввод текста и кнопка очистки ---

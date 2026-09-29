@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load l10n %}
 {% block title %}Добавить место{% endblock %}
 {% block content %}
 <h1>Добавить грибное место</h1>
@@ -18,8 +19,8 @@
         {% endfor %}
     </p>
     <p><label>Фото места (можно выбрать несколько): <input type="file" name="photos" accept="image/*" multiple></label></p>
-    <p><label>Широта: <input type="text" name="latitude" id="lat" readonly required></label></p>
-    <p><label>Долгота: <input type="text" name="longitude" id="lng" readonly required></label></p>
+    <p><label>Широта: <input type="text" name="latitude" id="lat" value="{% if prefill_lat is not None %}{{ prefill_lat|unlocalize }}{% endif %}" readonly required></label></p>
+    <p><label>Долгота: <input type="text" name="longitude" id="lng" value="{% if prefill_lng is not None %}{{ prefill_lng|unlocalize }}{% endif %}" readonly required></label></p>
     <button type="submit">Сохранить</button>
 </form>
 
@@ -34,6 +35,11 @@
     }).addTo(map);
 
     let marker;
+    {% if prefill_lat is not None and prefill_lng is not None %}
+        const initialLatLng = [{{ prefill_lat|unlocalize }}, {{ prefill_lng|unlocalize }}];
+        map.setView(initialLatLng, 15);
+        marker = L.marker(initialLatLng).addTo(map);
+    {% endif %}
     map.on('click', function (e) {
         document.getElementById('lat').value = e.latlng.lat.toFixed(6);
         document.getElementById('lng').value = e.latlng.lng.toFixed(6);

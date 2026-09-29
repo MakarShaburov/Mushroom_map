@@ -96,8 +96,19 @@ def spot_create(request):
             for photo in request.FILES.getlist('photos'):
                 SpotPhoto.objects.create(spot=spot, image=photo)
             return redirect('spots:map')
+    prefill_lat = None
+    prefill_lng = None
+    try:
+        if request.GET.get('lat') and request.GET.get('lng'):
+            prefill_lat = float(request.GET['lat'])
+            prefill_lng = float(request.GET['lng'])
+    except (TypeError, ValueError):
+        prefill_lat = None
+        prefill_lng = None
     return render(request, 'spots/spot_form.html', {
         'mushroom_types': MushroomType.objects.all(),
+        'prefill_lat': prefill_lat,
+        'prefill_lng': prefill_lng,
     })
 
 
