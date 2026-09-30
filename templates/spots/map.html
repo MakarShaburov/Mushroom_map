@@ -223,18 +223,21 @@
     .map-context-menu-item:hover {
         background: var(--border);
     }
-    .user-avatar-btn {
+    .map-topbar-left {
         position: absolute;
         top: 10px;
         left: 10px;
         z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .user-avatar-btn {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        border: 3px solid transparent;
-        background:
-            linear-gradient(var(--panel-bg), var(--panel-bg)) padding-box,
-            linear-gradient(135deg, #ff6ec4, #7873f5) border-box;
+        border: 3px solid var(--nav-bg);
+        background: var(--panel-bg);
         color: var(--text);
         font-weight: bold;
         font-size: 16px;
@@ -244,6 +247,52 @@
         justify-content: center;
         box-shadow: 0 1px 4px rgba(0,0,0,0.3);
         padding: 0;
+        flex-shrink: 0;
+    }
+    .theme-dropdown {
+        position: absolute;
+        top: 54px;
+        left: 10px;
+        z-index: 1001;
+        background: var(--panel-bg);
+        color: var(--text);
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        padding: 14px;
+        min-width: 220px;
+    }
+    .theme-dropdown-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+    .theme-dropdown-icon {
+        font-size: 16px;
+    }
+    .theme-toggle-group {
+        display: flex;
+        background: var(--bg);
+        border-radius: 20px;
+        padding: 3px;
+        gap: 3px;
+    }
+    .theme-toggle-btn {
+        flex: 1;
+        border: none;
+        background: none;
+        color: var(--muted);
+        padding: 7px 10px;
+        border-radius: 16px;
+        cursor: pointer;
+        font-size: 13px;
+    }
+    .theme-toggle-btn.active {
+        background: var(--panel-bg);
+        color: var(--text);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        font-weight: bold;
     }
     .profile-view-header {
         display: flex;
@@ -349,12 +398,23 @@
 <div style="position: relative;">
     <div id="map" style="height: 80vh; width: 100%;"></div>
 
-    {% if user.is_authenticated %}
-        <button id="user-avatar-toggle" class="user-avatar-btn" title="Профиль">{{ user.username|first|upper }}</button>
-    {% endif %}
-    <button id="settings-toggle" style="position: absolute; top: 60px; left: 10px; z-index: 1000; padding: 8px 12px; cursor: pointer;">
-        ⚙️ Настройки
-    </button>
+    <div class="map-topbar-left">
+        {% if user.is_authenticated %}
+            <button id="user-avatar-toggle" class="user-avatar-btn" title="Профиль">{{ user.username|first|upper }}</button>
+        {% endif %}
+        <button id="settings-toggle" class="search-panel-tab-btn" title="Настройки">⋯</button>
+    </div>
+
+    <div id="theme-dropdown" class="theme-dropdown" style="display: none;">
+        <div class="theme-dropdown-header">
+            <span class="theme-dropdown-icon">◐</span>
+            <span>Тема</span>
+        </div>
+        <div class="theme-toggle-group">
+            <button type="button" class="theme-toggle-btn" data-theme-option="light">Светлая</button>
+            <button type="button" class="theme-toggle-btn" data-theme-option="dark">Тёмная</button>
+        </div>
+    </div>
 
     <div id="spot-panel" style="display: none; position: absolute; top: 0; left: 0; height: 100%; width: 510px; background: var(--panel-bg); color: var(--text); box-shadow: 2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
         <button id="spot-panel-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text);">✕</button>
@@ -470,17 +530,6 @@
         </div>
     {% endif %}
 
-    <div id="settings-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 260px; background: var(--panel-bg); color: var(--text); box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
-        <button id="settings-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text);">✕</button>
-        <h3 style="margin-top: 0;">Настройки</h3>
-        <p style="margin-bottom: 6px;">Тема сайта</p>
-        <label style="display: block; margin-bottom: 6px;">
-            <input type="radio" name="theme" value="light"> Светлая
-        </label>
-        <label style="display: block;">
-            <input type="radio" name="theme" value="dark"> Тёмная
-        </label>
-    </div>
 
     <div id="map-context-menu" class="map-context-menu" style="display: none;">
         <button type="button" class="map-context-menu-item" data-action="add-spot">📍 Добавить объект</button>
@@ -495,7 +544,12 @@
 <script>
     const map = L.map('map').setView([55.75, 37.62], 10); // старт: Москва и область
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key={{ carto_api_key }}', {
+    const MAP_TILE_URLS = {
+        light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key={{ carto_api_key }}',
+        dark: 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key={{ carto_api_key }}',
+    };
+
+    const mapTileLayer = L.tileLayer(MAP_TILE_URLS[localStorage.getItem('theme') === 'dark' ? 'dark' : 'light'], {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
         maxZoom: 20,
@@ -957,24 +1011,38 @@
     });
     {% endif %}
 
-    // --- Настройки: тема сайта ---
-    const themeRadios = document.querySelectorAll('input[name="theme"]');
+    // --- Настройки: тема сайта и карты ---
+    const settingsToggle = document.getElementById('settings-toggle');
+    const themeDropdown = document.getElementById('theme-dropdown');
+    const themeToggleBtns = document.querySelectorAll('.theme-toggle-btn');
+
+    function setActiveThemeBtn(theme) {
+        themeToggleBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.themeOption === theme));
+    }
 
     function applyTheme(theme) {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('theme', theme);
+        setActiveThemeBtn(theme);
+        mapTileLayer.setUrl(MAP_TILE_URLS[theme]);
     }
 
-    document.getElementById('settings-toggle').addEventListener('click', () => {
-        const currentTheme = localStorage.getItem('theme') || 'light';
-        themeRadios.forEach(radio => { radio.checked = (radio.value === currentTheme); });
-        document.getElementById('settings-panel').style.display = 'block';
+    settingsToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (themeDropdown.style.display === 'block') {
+            themeDropdown.style.display = 'none';
+        } else {
+            setActiveThemeBtn(localStorage.getItem('theme') || 'light');
+            themeDropdown.style.display = 'block';
+        }
     });
-    document.getElementById('settings-close').addEventListener('click', () => {
-        document.getElementById('settings-panel').style.display = 'none';
+    document.addEventListener('click', (e) => {
+        if (themeDropdown.style.display === 'block' && !themeDropdown.contains(e.target) && e.target !== settingsToggle) {
+            themeDropdown.style.display = 'none';
+        }
     });
-    themeRadios.forEach(radio => {
-        radio.addEventListener('change', () => applyTheme(radio.value));
+    themeToggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => applyTheme(btn.dataset.themeOption));
     });
 </script>
 {% endblock %}
