@@ -39,6 +39,7 @@
         font-size: 14px;
         line-height: 32px;
         padding: 0;
+        flex-shrink: 0;
     }
     .search-panel-tab-btn.active {
         box-shadow: 0 0 0 2px var(--link);
@@ -56,6 +57,8 @@
         border-radius: 24px;
         padding: 8px 14px;
         box-sizing: border-box;
+        flex: 1;
+        min-width: 0;
     }
     .search-input-wrap .search-icon {
         flex-shrink: 0;
@@ -222,6 +225,17 @@
     }
     .map-context-menu-item:hover {
         background: var(--border);
+    }
+    /* Зум карты (+/-) по умолчанию в левом верхнем углу Leaflet рисует
+       сам — переносим весь этот угловой контейнер на середину левого края. */
+    .leaflet-top.leaflet-left {
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    .search-header-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
     .map-topbar-left {
         position: absolute;
@@ -422,17 +436,19 @@
     </div>
 
     <div class="search-panel-tabs">
-        <button id="search-route-toggle" class="search-panel-tab-btn" title="Проложить маршрут">🧭</button>
-        <button id="search-filter-toggle" class="search-panel-tab-btn" title="Фильтры по видам грибов">🎚</button>
         <button id="search-panel-toggle" class="search-panel-tab-btn" title="Свернуть/развернуть панель поиска">◄</button>
+        <button id="search-filter-toggle" class="search-panel-tab-btn" title="Фильтры по видам грибов">🎚</button>
     </div>
 
     <div id="search-panel" class="search-panel">
         <div id="search-panel-header">
-            <div class="search-input-wrap">
-                <span class="search-icon">🔍</span>
-                <input type="text" id="search-text" placeholder="Поиск и выбор мест">
-                <button type="button" id="search-clear" class="search-clear-btn" style="display: none;" title="Очистить">✕</button>
+            <div class="search-header-row">
+                <div class="search-input-wrap">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="search-text" placeholder="Поиск и выбор мест">
+                    <button type="button" id="search-clear" class="search-clear-btn" style="display: none;" title="Очистить">✕</button>
+                </div>
+                <button id="search-route-toggle" class="search-panel-tab-btn" title="Проложить маршрут">🧭</button>
             </div>
         </div>
 
