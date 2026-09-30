@@ -223,11 +223,136 @@
     .map-context-menu-item:hover {
         background: var(--border);
     }
+    .user-avatar-btn {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 1000;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        background:
+            linear-gradient(var(--panel-bg), var(--panel-bg)) padding-box,
+            linear-gradient(135deg, #ff6ec4, #7873f5) border-box;
+        color: var(--text);
+        font-weight: bold;
+        font-size: 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        padding: 0;
+    }
+    .profile-view-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        position: relative;
+    }
+    .profile-view-user {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+    .user-avatar-badge {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #ff6ec4, #7873f5);
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: bold;
+        flex-shrink: 0;
+    }
+    .profile-view-username {
+        font-weight: bold;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .profile-view-rating {
+        color: var(--muted);
+        font-size: 0.9em;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+    .profile-menu-btn {
+        border: none;
+        background: none;
+        color: var(--text);
+        font-size: 18px;
+        cursor: pointer;
+        padding: 4px 8px;
+        line-height: 1;
+        flex-shrink: 0;
+    }
+    .profile-menu {
+        position: absolute;
+        top: 36px;
+        right: 0;
+        z-index: 1002;
+        background: var(--panel-bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        padding: 6px;
+        min-width: 180px;
+    }
+    .profile-menu-item {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        text-align: left;
+        padding: 8px 10px;
+        border: none;
+        background: none;
+        color: var(--text);
+        cursor: pointer;
+        font-size: 14px;
+        border-radius: 6px;
+        text-decoration: none;
+    }
+    .profile-menu-item:hover {
+        background: var(--border);
+    }
+    .profile-menu-item-danger {
+        color: #c0392b;
+    }
+    .profile-menu-logout-form {
+        margin: 0;
+    }
+    .profile-spot-row {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+    }
+    .profile-spot-row:last-child {
+        border-bottom: none;
+    }
+    .profile-spot-title {
+        font-weight: bold;
+    }
+    .profile-spot-meta {
+        color: var(--muted);
+        font-size: 0.85em;
+        margin-top: 2px;
+    }
 </style>
 <div style="position: relative;">
     <div id="map" style="height: 80vh; width: 100%;"></div>
 
-    <button id="settings-toggle" style="position: absolute; top: 10px; left: 10px; z-index: 1000; padding: 8px 12px; cursor: pointer;">
+    {% if user.is_authenticated %}
+        <button id="user-avatar-toggle" class="user-avatar-btn" title="Профиль">{{ user.username|first|upper }}</button>
+    {% endif %}
+    <button id="settings-toggle" style="position: absolute; top: 60px; left: 10px; z-index: 1000; padding: 8px 12px; cursor: pointer;">
         ⚙️ Настройки
     </button>
 
@@ -294,8 +419,56 @@
 
                 <button type="button" id="route-reset" class="route-reset-btn">Сбросить маршрут</button>
             </div>
+
+            {% if user.is_authenticated %}
+                <div id="search-profile-view" style="display: none;">
+                    <div class="profile-view-header">
+                        <div class="profile-view-user">
+                            <span class="user-avatar-badge">{{ user.username|first|upper }}</span>
+                            <span class="profile-view-username">{{ user.username }}</span>
+                            <span class="profile-view-rating">★ {{ user.profile.rating|default:"—" }}</span>
+                        </div>
+                        <button type="button" id="profile-menu-toggle" class="profile-menu-btn" title="Меню профиля">⋯</button>
+
+                        <div id="profile-menu" class="profile-menu" style="display: none;">
+                            <button type="button" id="profile-settings-open" class="profile-menu-item">Настройки профиля</button>
+                            <form method="post" action="{% url 'accounts:logout' %}" class="profile-menu-logout-form">
+                                {% csrf_token %}
+                                <button type="submit" class="profile-menu-item profile-menu-item-danger">Выйти</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <p class="search-panel-label">Мои места</p>
+                    <div id="profile-spots-list">
+                        {% for spot in user.spots.all %}
+                            <div class="profile-spot-row" data-spot-id="{{ spot.pk }}">
+                                <div class="profile-spot-title">{{ spot.title }}</div>
+                                <div class="profile-spot-meta">
+                                    ★ {{ spot.average_rating|default:"—" }}
+                                    {% if spot.mushroom_types.all %}
+                                        · {% for t in spot.mushroom_types.all %}{{ t.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% empty %}
+                            <p style="color: var(--muted); font-size: 0.9em;">Вы ещё не добавили ни одного места.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
         </div>
     </div>
+
+    {% if user.is_authenticated %}
+        <div id="profile-settings-overlay" class="auth-modal-overlay" style="display: none;">
+            <div class="auth-modal" role="dialog" aria-modal="true">
+                <button type="button" id="profile-settings-close" class="auth-modal-close" title="Закрыть">✕</button>
+                <h2 style="margin-top: 0;">Настройки профиля</h2>
+                <div id="profile-settings-body"></div>
+            </div>
+        </div>
+    {% endif %}
 
     <div id="settings-panel" style="display: none; position: absolute; top: 0; right: 0; height: 100%; width: 260px; background: var(--panel-bg); color: var(--text); box-shadow: -2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
         <button id="settings-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text);">✕</button>
@@ -477,6 +650,10 @@
         filters: document.getElementById('search-filters-view'),
         route: document.getElementById('search-route-view'),
     };
+    const searchProfileView = document.getElementById('search-profile-view');
+    if (searchProfileView) {
+        views.profile = searchProfileView;
+    }
     const filtersClose = document.getElementById('filters-close');
     const filtersReset = document.getElementById('filters-reset');
     let currentView = 'results';
@@ -492,6 +669,10 @@
             routePickingField = null;
             document.getElementById('route-picker-menu').style.display = 'none';
             updateRouteFieldHighlight();
+        }
+        const profileMenuEl = document.getElementById('profile-menu');
+        if (name !== 'profile' && profileMenuEl) {
+            profileMenuEl.style.display = 'none';
         }
     }
 
@@ -690,6 +871,91 @@
     });
 
     document.getElementById('search-types').addEventListener('change', applyFilters);
+
+    {% if user.is_authenticated %}
+    // --- Профиль: показать/скрыть вид, меню из трёх точек, список мест ---
+    const userAvatarToggle = document.getElementById('user-avatar-toggle');
+    const profileMenuToggle = document.getElementById('profile-menu-toggle');
+    const profileMenu = document.getElementById('profile-menu');
+
+    userAvatarToggle.addEventListener('click', () => {
+        if (currentView === 'profile') {
+            showView('results');
+        } else {
+            setSearchPanelCollapsed(false);
+            showView('profile');
+        }
+    });
+
+    profileMenuToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profileMenu.style.display = profileMenu.style.display === 'block' ? 'none' : 'block';
+    });
+    document.addEventListener('click', (e) => {
+        if (profileMenu.style.display === 'block' && !profileMenu.contains(e.target) && e.target !== profileMenuToggle) {
+            profileMenu.style.display = 'none';
+        }
+    });
+
+    document.querySelectorAll('.profile-spot-row').forEach((row) => {
+        row.addEventListener('click', () => openSpotPanel(row.dataset.spotId));
+    });
+
+    // --- Настройки профиля: модалка с редактированием "О себе" ---
+    const profileSettingsOverlay = document.getElementById('profile-settings-overlay');
+    const profileSettingsBody = document.getElementById('profile-settings-body');
+    const profileSettingsUrl = "{% url 'accounts:profile_settings' %}";
+
+    function bindProfileSettingsForm() {
+        const form = profileSettingsBody.querySelector('form');
+        if (!form) return;
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            fetch(form.action, {
+                method: 'POST',
+                headers: { 'X-Panel-Request': '1' },
+                body: new FormData(form),
+            }).then((res) => {
+                if (res.status === 204) {
+                    window.location.reload();
+                    return null;
+                }
+                return res.text();
+            }).then((html) => {
+                if (html === null) return;
+                profileSettingsBody.innerHTML = html;
+                bindProfileSettingsForm();
+            });
+        });
+    }
+
+    function openProfileSettings() {
+        profileSettingsOverlay.style.display = 'flex';
+        profileSettingsBody.innerHTML = '<p>Загрузка…</p>';
+        fetch(profileSettingsUrl, { headers: { 'X-Panel-Request': '1' } })
+            .then((res) => res.text())
+            .then((html) => {
+                profileSettingsBody.innerHTML = html;
+                bindProfileSettingsForm();
+            });
+    }
+
+    function closeProfileSettings() {
+        profileSettingsOverlay.style.display = 'none';
+        profileSettingsBody.innerHTML = '';
+    }
+
+    document.getElementById('profile-settings-open').addEventListener('click', () => {
+        profileMenu.style.display = 'none';
+        openProfileSettings();
+    });
+    document.getElementById('profile-settings-close').addEventListener('click', closeProfileSettings);
+    profileSettingsOverlay.addEventListener('click', (e) => {
+        if (e.target === profileSettingsOverlay) closeProfileSettings();
+    });
+    {% endif %}
 
     // --- Настройки: тема сайта ---
     const themeRadios = document.querySelectorAll('input[name="theme"]');

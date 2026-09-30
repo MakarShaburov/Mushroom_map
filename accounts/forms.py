@@ -2,6 +2,18 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 
+from .models import Profile
+
+
+class ProfileBioForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = ['bio']
+        widgets = {
+            'bio': forms.Textarea(attrs={'rows': 4, 'placeholder': 'Расскажите о себе'}),
+        }
+        labels = {'bio': 'О себе'}
+
 
 class SignUpForm(UserCreationForm):
     email = forms.EmailField(required=True, label='Email')

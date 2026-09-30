@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 from spots.models import MushroomSpot
 from spots.views import PANEL_HEADER, render_spot_panel_response
 
-from .forms import SignUpForm
+from .forms import ProfileBioForm, SignUpForm
 from .models import UserRating
 
 
@@ -62,6 +62,26 @@ def signup(request):
 @login_required
 def profile_view(request):
     return render(request, 'accounts/profile.html', {'profile': request.user.profile})
+
+
+@login_required
+def profile_settings(request):
+    """Редактирование «О себе». Отдаёт партиал формы для модального
+    окна (по заголовку X-Panel-Request, как login/signup), либо
+    полноценную страницу-фолбэк."""
+    profile = request.user.profile
+    if request.method == 'POST':
+        form = ProfileBioForm(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            if request.headers.get(PANEL_HEADER):
+                return HttpResponse(status=204)
+            return redirect('accounts:profile')
+    else:
+        form = ProfileBioForm(instance=profile)
+    if request.headers.get(PANEL_HEADER):
+        return render(request, 'accounts/_profile_settings_form.html', {'form': form})
+    return render(request, 'accounts/profile_settings.html', {'form': form})
 
 
 def public_profile(request, username):
