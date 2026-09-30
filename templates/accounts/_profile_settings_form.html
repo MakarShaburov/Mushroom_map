@@ -1,0 +1,5 @@
+<form method="post" action="{% url 'accounts:profile_settings' %}" class="auth-form" data-auth-form="profile-settings">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Сохранить</button>
+</form>
