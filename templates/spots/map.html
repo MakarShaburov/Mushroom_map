@@ -691,6 +691,14 @@
                     }
                     openSpotPanel(spot.id);
                 });
+                marker.on('contextmenu', (e) => {
+                    // Останавливаем всплытие, чтобы у карты не сработал
+                    // свой обработчик 'contextmenu' с координатами курсора
+                    // поверх уже выставленных координат метки.
+                    L.DomEvent.preventDefault(e.originalEvent);
+                    L.DomEvent.stopPropagation(e.originalEvent);
+                    openMapContextMenu(e.originalEvent, L.latLng(spot.latitude, spot.longitude), spot.title);
+                });
                 allSpots.push({ data: spot, marker: marker });
             });
             applyFilters();
@@ -869,18 +877,29 @@
     // --- Контекстное меню по правому клику на карте ---
     const mapContextMenu = document.getElementById('map-context-menu');
     let contextMenuLatLng = null;
+    let contextMenuLabel = null; // название метки, если меню открыто на ней, иначе null
 
     function closeMapContextMenu() {
         mapContextMenu.style.display = 'none';
         contextMenuLatLng = null;
+        contextMenuLabel = null;
+    }
+
+    // Общий показ меню: latlng (и опционально label) передаём явно, чтобы
+    // при правом клике по метке гриба можно было подставить её точные
+    // координаты и название из базы, а не то место, куда попал курсор
+    // (иконка маркера крупнее точки, которую она отмечает).
+    function openMapContextMenu(originalEvent, latlng, label) {
+        contextMenuLatLng = latlng;
+        contextMenuLabel = label || null;
+        mapContextMenu.style.left = originalEvent.clientX + 'px';
+        mapContextMenu.style.top = originalEvent.clientY + 'px';
+        mapContextMenu.style.display = 'block';
     }
 
     map.on('contextmenu', (e) => {
         e.originalEvent.preventDefault();
-        contextMenuLatLng = e.latlng;
-        mapContextMenu.style.left = e.originalEvent.clientX + 'px';
-        mapContextMenu.style.top = e.originalEvent.clientY + 'px';
-        mapContextMenu.style.display = 'block';
+        openMapContextMenu(e.originalEvent, e.latlng);
     });
 
     document.addEventListener('click', (e) => {
@@ -907,7 +926,7 @@
 
     document.querySelector('[data-action="route-to"]').addEventListener('click', () => {
         if (!contextMenuLatLng) return;
-        const point = { lat: contextMenuLatLng.lat, lng: contextMenuLatLng.lng, label: contextMenuPointLabel(contextMenuLatLng) };
+        const point = { lat: contextMenuLatLng.lat, lng: contextMenuLatLng.lng, label: contextMenuLabel || contextMenuPointLabel(contextMenuLatLng) };
         closeMapContextMenu();
         setSearchPanelCollapsed(false);
         showView('route');
@@ -917,7 +936,7 @@
 
     document.querySelector('[data-action="route-from"]').addEventListener('click', () => {
         if (!contextMenuLatLng) return;
-        const point = { lat: contextMenuLatLng.lat, lng: contextMenuLatLng.lng, label: contextMenuPointLabel(contextMenuLatLng) };
+        const point = { lat: contextMenuLatLng.lat, lng: contextMenuLatLng.lng, label: contextMenuLabel || contextMenuPointLabel(contextMenuLatLng) };
         closeMapContextMenu();
         setSearchPanelCollapsed(false);
         showView('route');
