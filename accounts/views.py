@@ -1,7 +1,10 @@
-from django.contrib.auth import login
+from django.contrib.auth import REDIRECT_FIELD_NAME, login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from spots.models import MushroomSpot
@@ -11,15 +14,48 @@ from .forms import SignUpForm
 from .models import UserRating
 
 
+def _safe_next_url(request):
+    """Достаём ?next=... (или скрытое поле next из формы) и проверяем,
+    что это внутренний адрес, а не редирект на сторонний сайт."""
+    next_url = request.POST.get(REDIRECT_FIELD_NAME) or request.GET.get(REDIRECT_FIELD_NAME)
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+    ):
+        return next_url
+    return None
+
+
+def login_view(request):
+    """Своя view вместо стандартной auth_views.LoginView: нужно уметь
+    отдавать как полную страницу входа, так и партиал формы для
+    модального окна (по заголовку X-Panel-Request, как и панель места)."""
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            login(request, form.get_user())
+            if request.headers.get(PANEL_HEADER):
+                return HttpResponse(status=204)
+            return redirect(_safe_next_url(request) or 'spots:map')
+    else:
+        form = AuthenticationForm(request)
+    if request.headers.get(PANEL_HEADER):
+        return render(request, 'accounts/_login_form.html', {'form': form})
+    return render(request, 'accounts/login.html', {'form': form})
+
+
 def signup(request):
     if request.method == 'POST':
         form = SignUpForm(request.POST)
         if form.is_valid():
             user = form.save()
             login(request, user)
-            return redirect('spots:map')
+            if request.headers.get(PANEL_HEADER):
+                return HttpResponse(status=204)
+            return redirect(_safe_next_url(request) or 'spots:map')
     else:
         form = SignUpForm()
+    if request.headers.get(PANEL_HEADER):
+        return render(request, 'accounts/_signup_form.html', {'form': form})
     return render(request, 'accounts/signup.html', {'form': form})
 
 

@@ -1,0 +1,8 @@
+<form method="post" action="{% url 'accounts:signup' %}" class="auth-form" data-auth-form="signup">
+    {% csrf_token %}
+    {% if request.GET.next %}
+        <input type="hidden" name="next" value="{{ request.GET.next }}">
+    {% endif %}
+    {{ form.as_p }}
+    <button type="submit">Зарегистрироваться</button>
+</form>
