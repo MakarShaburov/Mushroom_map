@@ -408,6 +408,113 @@
         font-size: 0.85em;
         margin-top: 2px;
     }
+    .spot-card-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .spot-card-photos {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 16 / 10;
+        border-radius: 10px;
+        overflow: hidden;
+        background: var(--bg);
+        margin-bottom: 12px;
+    }
+    .spot-card-photo {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 0.5s ease;
+    }
+    .spot-card-photo.active {
+        opacity: 1;
+    }
+    .spot-card-photo-dots {
+        position: absolute;
+        bottom: 8px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+    }
+    .spot-card-photo-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.5);
+    }
+    .spot-card-photo-dot.active {
+        background: #fff;
+    }
+    .spot-card-title {
+        margin: 0 0 6px;
+        font-size: 1.2em;
+    }
+    .spot-card-rating {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        font-size: 0.95em;
+        flex-wrap: wrap;
+    }
+    .spot-card-stars {
+        color: #f5a623;
+        letter-spacing: 1px;
+    }
+    .spot-card-rating-value {
+        font-weight: bold;
+    }
+    .spot-card-rating-count {
+        color: var(--muted);
+    }
+    .spot-card-description {
+        color: var(--text);
+        white-space: pre-line;
+        margin: 0 0 12px;
+    }
+    .spot-card-actions {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    .spot-card-route-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: none;
+        border-radius: 24px;
+        background: var(--nav-bg);
+        color: var(--nav-text);
+        padding: 10px 16px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .spot-card-share-btn {
+        flex-shrink: 0;
+        width: 44px;
+        border: none;
+        border-radius: 12px;
+        background: var(--bg);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 16px;
+    }
+    .spot-card-coords {
+        color: var(--muted);
+        font-size: 0.9em;
+        margin: 0 0 12px;
+    }
 </style>
 <div style="position: relative;">
     <div id="map" style="height: 80vh; width: 100%;"></div>
@@ -494,6 +601,14 @@
                 <p id="route-status" class="route-status"></p>
 
                 <button type="button" id="route-reset" class="route-reset-btn">Сбросить маршрут</button>
+            </div>
+
+            <div id="search-spot-view" style="display: none;">
+                <div class="spot-card-header-row">
+                    <p class="search-panel-label" style="margin: 0;">Место</p>
+                    <button type="button" id="spot-card-close" class="filters-close-btn" title="Закрыть">✕</button>
+                </div>
+                <div id="spot-card-content"></div>
             </div>
 
             {% if user.is_authenticated %}
@@ -594,6 +709,72 @@
 
     document.getElementById('spot-panel-close').addEventListener('click', closeSpotPanel);
 
+    // --- Карточка места в окне поиска (открывается по клику на метку) ---
+    let spotCardCarouselTimer = null;
+
+    function stopSpotCardCarousel() {
+        if (spotCardCarouselTimer) {
+            clearInterval(spotCardCarouselTimer);
+            spotCardCarouselTimer = null;
+        }
+    }
+
+    function startSpotCardCarousel(container) {
+        stopSpotCardCarousel();
+        const photos = container.querySelectorAll('.spot-card-photo');
+        if (photos.length <= 1) return;
+        const dots = container.querySelectorAll('.spot-card-photo-dot');
+        let index = 0;
+        spotCardCarouselTimer = setInterval(() => {
+            photos[index].classList.remove('active');
+            if (dots[index]) dots[index].classList.remove('active');
+            index = (index + 1) % photos.length;
+            photos[index].classList.add('active');
+            if (dots[index]) dots[index].classList.add('active');
+        }, 5000);
+    }
+
+    function bindSpotCardActions(content) {
+        const routeBtn = content.querySelector('.spot-card-route-btn');
+        if (routeBtn) {
+            routeBtn.addEventListener('click', () => {
+                setSearchPanelCollapsed(false);
+                showView('route');
+                setRoutePoint('to', {
+                    lat: parseFloat(routeBtn.dataset.spotLat),
+                    lng: parseFloat(routeBtn.dataset.spotLng),
+                    label: routeBtn.dataset.spotTitle,
+                });
+                armRouteField('from');
+            });
+        }
+
+        const shareBtn = content.querySelector('.spot-card-share-btn');
+        const coordsEl = content.querySelector('.spot-card-coords');
+        if (shareBtn && coordsEl) {
+            shareBtn.addEventListener('click', () => {
+                coordsEl.style.display = coordsEl.style.display === 'none' ? 'block' : 'none';
+            });
+        }
+    }
+
+    function openSpotSearchCard(spotId) {
+        setSearchPanelCollapsed(false);
+        showView('spot');
+        const content = document.getElementById('spot-card-content');
+        content.innerHTML = '<p>Загрузка…</p>';
+        stopSpotCardCarousel();
+        fetch(`/spots/${spotId}/card/`)
+            .then(response => response.text())
+            .then(html => {
+                content.innerHTML = html;
+                startSpotCardCarousel(content);
+                bindSpotCardActions(content);
+            });
+    }
+
+    document.getElementById('spot-card-close').addEventListener('click', () => showView('results'));
+
     function removeSpotFromMap(spotId) {
         const idx = allSpots.findIndex(entry => entry.data.id === spotId);
         if (idx === -1) return;
@@ -689,7 +870,7 @@
                         setRoutePoint(routePickingField, { lat: spot.latitude, lng: spot.longitude, label: spot.title });
                         return;
                     }
-                    openSpotPanel(spot.id);
+                    openSpotSearchCard(spot.id);
                 });
                 marker.on('contextmenu', (e) => {
                     // Останавливаем всплытие, чтобы у карты не сработал
@@ -727,6 +908,7 @@
         results: document.getElementById('search-results-view'),
         filters: document.getElementById('search-filters-view'),
         route: document.getElementById('search-route-view'),
+        spot: document.getElementById('search-spot-view'),
     };
     const searchProfileView = document.getElementById('search-profile-view');
     if (searchProfileView) {
@@ -751,6 +933,9 @@
         const profileMenuEl = document.getElementById('profile-menu');
         if (name !== 'profile' && profileMenuEl) {
             profileMenuEl.style.display = 'none';
+        }
+        if (name !== 'spot') {
+            stopSpotCardCarousel();
         }
     }
 

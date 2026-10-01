@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import CommentVote, MushroomSpot, MushroomType, SpotComment, SpotPhoto, SpotRating
+from .utils import ru_plural
 
 PANEL_HEADER = 'X-Panel-Request'
 
@@ -68,6 +69,20 @@ def render_spot_panel_response(request, spot):
 def spot_panel(request, pk):
     spot = get_object_or_404(MushroomSpot, pk=pk)
     return render_spot_panel_response(request, spot)
+
+
+def spot_search_card(request, pk):
+    """Компактная карточка места для окна поиска на карте (фото, название,
+    рейтинг, описание) — открывается по клику на метку. Полная карточка
+    с оценками/комментариями пока остаётся на отдельной странице места."""
+    spot = get_object_or_404(MushroomSpot, pk=pk)
+    rounded_rating = round(spot.average_rating) if spot.average_rating else 0
+    ratings_word = ru_plural(spot.ratings_count, ('оценка', 'оценки', 'оценок'))
+    return render(request, 'spots/_spot_search_card.html', {
+        'spot': spot,
+        'rounded_rating': rounded_rating,
+        'ratings_word': ratings_word,
+    })
 
 
 def spot_detail(request, pk):

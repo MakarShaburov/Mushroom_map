@@ -1,0 +1,45 @@
+{% load l10n %}
+<div class="spot-card" data-spot-id="{{ spot.pk }}" data-spot-lat="{{ spot.latitude|unlocalize }}" data-spot-lng="{{ spot.longitude|unlocalize }}">
+    {% if spot.photos.all %}
+        <div class="spot-card-photos">
+            {% for photo in spot.photos.all %}
+                <img src="{{ photo.image.url }}" alt="{{ spot.title }}" class="spot-card-photo{% if forloop.first %} active{% endif %}">
+            {% endfor %}
+            {% if spot.photos.all|length > 1 %}
+                <div class="spot-card-photo-dots">
+                    {% for photo in spot.photos.all %}
+                        <span class="spot-card-photo-dot{% if forloop.first %} active{% endif %}"></span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <h2 class="spot-card-title">{{ spot.title }}</h2>
+
+    <div class="spot-card-rating">
+        {% if spot.average_rating %}
+            <span class="spot-card-stars">{% for i in "12345" %}{% if forloop.counter <= rounded_rating %}★{% else %}☆{% endif %}{% endfor %}</span>
+            <span class="spot-card-rating-value">{{ spot.average_rating|floatformat:1 }}</span>
+            <span class="spot-card-rating-count">{{ spot.ratings_count }} {{ ratings_word }}</span>
+        {% else %}
+            <span class="spot-card-rating-count">Пока нет оценок</span>
+        {% endif %}
+    </div>
+
+    <p class="spot-card-description">{{ spot.description }}</p>
+
+    <div class="spot-card-actions">
+        <button
+            type="button"
+            class="spot-card-route-btn"
+            data-spot-lat="{{ spot.latitude|unlocalize }}"
+            data-spot-lng="{{ spot.longitude|unlocalize }}"
+            data-spot-title="{{ spot.title }}"
+        >🧭 Маршрут</button>
+        <button type="button" class="spot-card-share-btn" title="Поделиться">↗</button>
+    </div>
+    <p class="spot-card-coords" style="display: none;">{{ spot.latitude|unlocalize }}, {{ spot.longitude|unlocalize }}</p>
+
+    <p><a href="{% url 'spots:spot_detail' spot.pk %}">Подробнее, оценить, комментарии →</a></p>
+</div>
