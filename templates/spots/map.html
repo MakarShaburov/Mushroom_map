@@ -996,6 +996,11 @@
             ],
             language: 'ru',
             router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+            // Свои маркеры не создаём: если точка маршрута — это грибное
+            // место, маркер Routing Machine вставал бы прямо поверх его
+            // метки и перехватывал клик, из-за чего карточку места было
+            // не открыть. Сама линия маршрута видна и без них.
+            createMarker: () => null,
         }).addTo(map);
         routingControl.on('routesfound', (e) => {
             const summary = e.routes[0].summary;
