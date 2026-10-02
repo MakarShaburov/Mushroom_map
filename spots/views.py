@@ -78,12 +78,25 @@ def _spot_card_context(request, spot):
     if request.user.is_authenticated:
         my_rating = spot.ratings.filter(user=request.user).first()
         my_score = my_rating.score if my_rating else 0
+
+    comments = list(spot.comments.select_related('author').all())
+    scores_by_user = {r.user_id: r.score for r in spot.ratings.all()}
+    my_votes = {}
+    if request.user.is_authenticated:
+        my_votes = {
+            v.comment_id: v.is_like
+            for v in CommentVote.objects.filter(comment__spot=spot, user=request.user)
+        }
+    for comment in comments:
+        comment.author_score = scores_by_user.get(comment.author_id)
+        comment.user_vote = my_votes.get(comment.id)
+
     return {
         'spot': spot,
         'rounded_rating': rounded_rating,
         'ratings_word': ratings_word,
         'my_score': my_score,
-        'comments': spot.comments.select_related('author').all(),
+        'comments': comments,
     }
 
 

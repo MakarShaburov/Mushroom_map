@@ -595,17 +595,31 @@
     }
     .spot-comment-header {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 8px;
         margin-bottom: 6px;
+    }
+    .spot-comment-header-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
     }
     .spot-comment-author {
         font-weight: bold;
     }
+    .spot-comment-meta-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .spot-comment-author-stars {
+        color: #f5a623;
+        font-size: 0.85em;
+        letter-spacing: 1px;
+    }
     .spot-comment-date {
         color: var(--muted);
         font-size: 0.85em;
-        margin-left: auto;
     }
     .spot-comment-text {
         margin: 0 0 8px;
@@ -618,7 +632,28 @@
         margin-bottom: 8px;
     }
     .spot-comment-votes {
-        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .spot-comment-vote-btn {
+        border: none;
+        background: none;
+        color: var(--muted);
+        font-size: 0.9em;
+        cursor: pointer;
+        padding: 3px 6px;
+        border-radius: 6px;
+    }
+    .spot-comment-vote-btn:hover {
+        background: var(--border);
+    }
+    .spot-comment-vote-btn.active {
+        color: var(--text);
+        font-weight: bold;
+        background: var(--bg);
+    }
+    .spot-comment-vote-static {
         color: var(--muted);
         font-size: 0.9em;
     }
@@ -942,6 +977,23 @@
         }, 5000);
     }
 
+    function getCsrfToken() {
+        const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+    }
+
+    function refreshSpotCard(spotId) {
+        const content = document.getElementById('spot-card-content');
+        stopSpotCardCarousel();
+        fetch(`/spots/${spotId}/card/`)
+            .then(response => response.text())
+            .then(html => {
+                content.innerHTML = html;
+                startSpotCardCarousel(content);
+                bindSpotCardActions(content);
+            });
+    }
+
     function bindSpotCardActions(content) {
         const routeBtn = content.querySelector('.spot-card-route-btn');
         if (routeBtn) {
@@ -977,6 +1029,24 @@
             });
         });
 
+        // --- Лайк/дизлайк под комментариями ---
+        content.querySelectorAll('.spot-comment-vote-btn').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const spotId = content.querySelector('.spot-card').dataset.spotId;
+                const formData = new FormData();
+                formData.append('is_like', btn.dataset.isLike);
+                btn.disabled = true;
+                fetch(`/comments/${btn.dataset.commentId}/vote/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken(),
+                        'X-Panel-Request': '1',
+                    },
+                    body: formData,
+                }).then(() => refreshSpotCard(spotId));
+            });
+        });
+
         // --- Звёзды в "Обзоре" — только открывают модалку оценки/отзыва ---
         const spotCardEl = content.querySelector('.spot-card');
         const reviewStarsWrap = content.querySelector('#spot-card-review-stars');
@@ -997,16 +1067,8 @@
     function openSpotSearchCard(spotId) {
         setSearchPanelCollapsed(false);
         showView('spot');
-        const content = document.getElementById('spot-card-content');
-        content.innerHTML = '<p>Загрузка…</p>';
-        stopSpotCardCarousel();
-        fetch(`/spots/${spotId}/card/`)
-            .then(response => response.text())
-            .then(html => {
-                content.innerHTML = html;
-                startSpotCardCarousel(content);
-                bindSpotCardActions(content);
-            });
+        document.getElementById('spot-card-content').innerHTML = '<p>Загрузка…</p>';
+        refreshSpotCard(spotId);
     }
 
     document.getElementById('spot-card-close').addEventListener('click', () => showView('results'));

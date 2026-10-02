@@ -75,14 +75,28 @@
                 <div class="spot-comment-row">
                     <div class="spot-comment-header">
                         <span class="user-avatar-badge">{{ comment.author.username|first|upper }}</span>
-                        <span class="spot-comment-author">{{ comment.author.username }}</span>
-                        <span class="spot-comment-date">{{ comment.created_at|date:"d.m.Y" }}</span>
+                        <div class="spot-comment-header-info">
+                            <div class="spot-comment-author">{{ comment.author.username }}</div>
+                            <div class="spot-comment-meta-row">
+                                {% if comment.author_score %}
+                                    <span class="spot-comment-author-stars">{% for i in "12345" %}{% if forloop.counter <= comment.author_score %}★{% else %}☆{% endif %}{% endfor %}</span>
+                                {% endif %}
+                                <span class="spot-comment-date">{{ comment.created_at|date:"d.m.Y" }}</span>
+                            </div>
+                        </div>
                     </div>
                     <p class="spot-comment-text">{{ comment.text }}</p>
                     {% if comment.image %}
                         <img src="{{ comment.image.url }}" alt="" class="spot-comment-photo">
                     {% endif %}
-                    <p class="spot-comment-votes">👍 {{ comment.likes_count }} · 👎 {{ comment.dislikes_count }}</p>
+                    <div class="spot-comment-votes">
+                        {% if user.is_authenticated %}
+                            <button type="button" class="spot-comment-vote-btn{% if comment.user_vote == True %} active{% endif %}" data-comment-id="{{ comment.pk }}" data-is-like="1">👍 {{ comment.likes_count }}</button>
+                            <button type="button" class="spot-comment-vote-btn{% if comment.user_vote == False %} active{% endif %}" data-comment-id="{{ comment.pk }}" data-is-like="0">👎 {{ comment.dislikes_count }}</button>
+                        {% else %}
+                            <span class="spot-comment-vote-static">👍 {{ comment.likes_count }} · 👎 {{ comment.dislikes_count }}</span>
+                        {% endif %}
+                    </div>
                 </div>
             {% empty %}
                 <p class="spot-card-empty">Комментариев пока нет — станьте первым.</p>
