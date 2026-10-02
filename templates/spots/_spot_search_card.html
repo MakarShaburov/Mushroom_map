@@ -1,5 +1,12 @@
 {% load l10n %}
-<div class="spot-card" data-spot-id="{{ spot.pk }}" data-spot-lat="{{ spot.latitude|unlocalize }}" data-spot-lng="{{ spot.longitude|unlocalize }}">
+<div
+    class="spot-card"
+    data-spot-id="{{ spot.pk }}"
+    data-spot-lat="{{ spot.latitude|unlocalize }}"
+    data-spot-lng="{{ spot.longitude|unlocalize }}"
+    data-spot-title="{{ spot.title }}"
+    data-spot-photo="{% if spot.photos.first %}{{ spot.photos.first.image.url }}{% endif %}"
+>
     {% if spot.photos.all %}
         <div class="spot-card-photos">
             {% for photo in spot.photos.all %}
@@ -41,5 +48,55 @@
     </div>
     <p class="spot-card-coords" style="display: none;">{{ spot.latitude|unlocalize }}, {{ spot.longitude|unlocalize }}</p>
 
-    <p><a href="{% url 'spots:spot_detail' spot.pk %}">Подробнее, оценить, комментарии →</a></p>
+    <div class="spot-card-tabs">
+        <button type="button" class="spot-tab-btn active" data-spot-tab="overview">Обзор</button>
+        <button type="button" class="spot-tab-btn" data-spot-tab="photos">Фото <span class="spot-tab-badge">{{ spot.photos.count }}</span></button>
+        <button type="button" class="spot-tab-btn" data-spot-tab="comments">Комментарии <span class="spot-tab-badge">{{ spot.comments.count }}</span></button>
+    </div>
+
+    <div class="spot-tab-panel" data-spot-tab-panel="overview">
+        <p class="spot-card-types"><strong>Виды грибов:</strong>
+            {% for type in spot.mushroom_types.all %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% empty %}не указаны{% endfor %}
+        </p>
+
+        {% if user.is_authenticated %}
+            <p class="spot-review-prompt">Оцените и напишите комментарий</p>
+            <div class="spot-review-stars" id="spot-card-review-stars">
+                {% for i in "12345" %}
+                    <button type="button" class="spot-review-star{% if forloop.counter <= my_score %} filled{% endif %}" data-score="{{ forloop.counter }}" title="Оценить на {{ forloop.counter }}">★</button>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="spot-card-login-hint"><a href="{% url 'accounts:login' %}" data-auth-open="login">Войдите</a>, чтобы оценить и оставить комментарий.</p>
+        {% endif %}
+
+        <div class="spot-comments-list">
+            {% for comment in comments %}
+                <div class="spot-comment-row">
+                    <div class="spot-comment-header">
+                        <span class="user-avatar-badge">{{ comment.author.username|first|upper }}</span>
+                        <span class="spot-comment-author">{{ comment.author.username }}</span>
+                        <span class="spot-comment-date">{{ comment.created_at|date:"d.m.Y" }}</span>
+                    </div>
+                    <p class="spot-comment-text">{{ comment.text }}</p>
+                    {% if comment.image %}
+                        <img src="{{ comment.image.url }}" alt="" class="spot-comment-photo">
+                    {% endif %}
+                    <p class="spot-comment-votes">👍 {{ comment.likes_count }} · 👎 {{ comment.dislikes_count }}</p>
+                </div>
+            {% empty %}
+                <p class="spot-card-empty">Комментариев пока нет — станьте первым.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="spot-tab-panel" data-spot-tab-panel="photos" style="display: none;">
+        <p class="spot-card-empty">Вкладка «Фото» появится здесь позже.</p>
+    </div>
+
+    <div class="spot-tab-panel" data-spot-tab-panel="comments" style="display: none;">
+        <p class="spot-card-empty">Отдельная вкладка «Комментарии» появится здесь позже.</p>
+    </div>
+
+    <p><a href="{% url 'spots:spot_detail' spot.pk %}">Открыть отдельную страницу места →</a></p>
 </div>

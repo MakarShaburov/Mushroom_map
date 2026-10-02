@@ -71,18 +71,46 @@ def spot_panel(request, pk):
     return render_spot_panel_response(request, spot)
 
 
-def spot_search_card(request, pk):
-    """Компактная карточка места для окна поиска на карте (фото, название,
-    рейтинг, описание) — открывается по клику на метку. Полная карточка
-    с оценками/комментариями пока остаётся на отдельной странице места."""
-    spot = get_object_or_404(MushroomSpot, pk=pk)
+def _spot_card_context(request, spot):
     rounded_rating = round(spot.average_rating) if spot.average_rating else 0
     ratings_word = ru_plural(spot.ratings_count, ('оценка', 'оценки', 'оценок'))
-    return render(request, 'spots/_spot_search_card.html', {
+    my_score = 0
+    if request.user.is_authenticated:
+        my_rating = spot.ratings.filter(user=request.user).first()
+        my_score = my_rating.score if my_rating else 0
+    return {
         'spot': spot,
         'rounded_rating': rounded_rating,
         'ratings_word': ratings_word,
-    })
+        'my_score': my_score,
+        'comments': spot.comments.select_related('author').all(),
+    }
+
+
+def spot_search_card(request, pk):
+    """Компактная карточка места для окна поиска на карте (фото, название,
+    рейтинг, описание, вкладка «Обзор») — открывается по клику на метку.
+    Полная страница места с маршрутом остаётся как отдельный URL."""
+    spot = get_object_or_404(MushroomSpot, pk=pk)
+    return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
+
+
+@login_required
+@require_POST
+def spot_review_create(request, pk):
+    """Сохраняет оценку и (опционально) комментарий с фото одним действием —
+    модалка «Как вам это место?» на вкладке «Обзор» в окне поиска."""
+    spot = get_object_or_404(MushroomSpot, pk=pk)
+    score = request.POST.get('score')
+    if score and score.isdigit() and 1 <= int(score) <= 5:
+        SpotRating.objects.update_or_create(
+            spot=spot, user=request.user, defaults={'score': int(score)},
+        )
+    text = request.POST.get('text', '').strip()
+    image = request.FILES.get('image')
+    if text:
+        SpotComment.objects.create(spot=spot, author=request.user, text=text, image=image)
+    return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
 
 
 def spot_detail(request, pk):

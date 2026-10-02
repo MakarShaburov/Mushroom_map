@@ -216,11 +216,15 @@
                     body.innerHTML = '';
                 }
 
-                document.querySelectorAll('[data-auth-open]').forEach(function (link) {
-                    link.addEventListener('click', function (e) {
-                        e.preventDefault();
-                        openModal(link.dataset.authOpen);
-                    });
+                // Делегирование на document, а не разовый querySelectorAll —
+                // чтобы ссылки "Войдите", подгруженные позже через AJAX
+                // (например, в карточке места на карте), тоже открывали
+                // модалку, а не просто уводили по обычной ссылке.
+                document.addEventListener('click', function (e) {
+                    const link = e.target.closest('[data-auth-open]');
+                    if (!link) return;
+                    e.preventDefault();
+                    openModal(link.dataset.authOpen);
                 });
 
                 tabs.forEach(function (btn) {

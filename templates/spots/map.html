@@ -515,6 +515,183 @@
         font-size: 0.9em;
         margin: 0 0 12px;
     }
+    .spot-card-tabs {
+        display: flex;
+        gap: 18px;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 14px;
+    }
+    .spot-tab-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: none;
+        background: none;
+        color: var(--muted);
+        font-size: 14px;
+        padding: 0 0 10px;
+        margin-bottom: -1px;
+        border-bottom: 2px solid transparent;
+        cursor: pointer;
+    }
+    .spot-tab-btn.active {
+        color: var(--text);
+        font-weight: bold;
+        border-bottom-color: var(--link);
+    }
+    .spot-tab-badge {
+        background: var(--bg);
+        color: var(--muted);
+        border-radius: 10px;
+        padding: 1px 7px;
+        font-size: 0.8em;
+    }
+    .spot-card-types {
+        margin: 0 0 14px;
+        font-size: 0.95em;
+    }
+    .spot-review-prompt {
+        margin: 0 0 8px;
+        font-weight: bold;
+    }
+    .spot-review-stars {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 16px;
+    }
+    .spot-review-star {
+        border: none;
+        background: none;
+        font-size: 24px;
+        line-height: 1;
+        color: var(--border);
+        cursor: pointer;
+        padding: 0;
+    }
+    .spot-review-star.filled {
+        color: #f5a623;
+    }
+    .spot-card-login-hint {
+        color: var(--muted);
+        font-size: 0.9em;
+        margin-bottom: 16px;
+    }
+    .spot-card-empty {
+        color: var(--muted);
+        font-size: 0.9em;
+    }
+    .spot-comments-list {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+    .spot-comment-row {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 12px;
+    }
+    .spot-comment-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+    }
+    .spot-comment-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+    .spot-comment-author {
+        font-weight: bold;
+    }
+    .spot-comment-date {
+        color: var(--muted);
+        font-size: 0.85em;
+        margin-left: auto;
+    }
+    .spot-comment-text {
+        margin: 0 0 8px;
+    }
+    .spot-comment-photo {
+        max-width: 100%;
+        max-height: 160px;
+        border-radius: 8px;
+        display: block;
+        margin-bottom: 8px;
+    }
+    .spot-comment-votes {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9em;
+    }
+    .review-modal {
+        width: 420px;
+    }
+    .review-modal-photo-wrap {
+        margin: -24px -24px 16px;
+        overflow: hidden;
+        border-radius: 12px 12px 0 0;
+    }
+    .review-modal-photo {
+        width: 100%;
+        max-height: 220px;
+        object-fit: cover;
+        display: block;
+    }
+    .review-modal-title {
+        margin: 0 0 14px;
+        font-size: 1.2em;
+    }
+    .review-modal-stars {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+    .review-modal-stars .spot-review-star {
+        font-size: 30px;
+    }
+    #review-modal-text {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text);
+        padding: 10px;
+        font-family: inherit;
+        resize: vertical;
+        margin-bottom: 12px;
+    }
+    .review-modal-photo-input-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+        font-size: 0.9em;
+        color: var(--text);
+        margin-bottom: 4px;
+    }
+    .review-modal-image-name {
+        display: block;
+        color: var(--muted);
+        font-size: 0.85em;
+        margin-bottom: 12px;
+    }
+    #review-modal-save {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        background: var(--nav-bg);
+        color: var(--nav-text);
+        cursor: pointer;
+        font-size: 15px;
+    }
+    #review-modal-save:disabled {
+        opacity: 0.6;
+        cursor: default;
+    }
 </style>
 <div style="position: relative;">
     <div id="map" style="height: 80vh; width: 100%;"></div>
@@ -659,6 +836,37 @@
                 <div id="profile-settings-body"></div>
             </div>
         </div>
+
+        <div id="review-modal-overlay" class="auth-modal-overlay" style="display: none;">
+            <div class="auth-modal review-modal" role="dialog" aria-modal="true">
+                <button type="button" id="review-modal-close" class="auth-modal-close" title="Закрыть">✕</button>
+
+                <div id="review-modal-photo-wrap" class="review-modal-photo-wrap" style="display: none;">
+                    <img id="review-modal-photo" class="review-modal-photo" alt="">
+                </div>
+
+                <h2 class="review-modal-title">Как вам это место?</h2>
+                <p id="review-modal-spot-title" style="margin: -8px 0 16px; color: var(--muted);"></p>
+
+                <div class="review-modal-stars" id="review-modal-stars">
+                    {% for i in "12345" %}
+                        <button type="button" class="spot-review-star" data-score="{{ forloop.counter }}" title="Оценить на {{ forloop.counter }}">★</button>
+                    {% endfor %}
+                </div>
+
+                <form id="review-modal-form" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <input type="hidden" id="review-modal-score-input" name="score" value="0">
+                    <textarea id="review-modal-text" name="text" rows="3" placeholder="Опишите плюсы и минусы"></textarea>
+                    <label class="review-modal-photo-input-label">
+                        📷 Добавить фото
+                        <input type="file" id="review-modal-image" name="image" accept="image/*" style="display: none;">
+                    </label>
+                    <span id="review-modal-image-name" class="review-modal-image-name"></span>
+                    <button type="submit" id="review-modal-save">Сохранить</button>
+                </form>
+            </div>
+        </div>
     {% endif %}
 
 
@@ -754,6 +962,34 @@
         if (shareBtn && coordsEl) {
             shareBtn.addEventListener('click', () => {
                 coordsEl.style.display = coordsEl.style.display === 'none' ? 'block' : 'none';
+            });
+        }
+
+        // --- Вкладки Обзор / Фото / Комментарии ---
+        const tabBtns = content.querySelectorAll('.spot-tab-btn');
+        tabBtns.forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.spotTab;
+                tabBtns.forEach((b) => b.classList.toggle('active', b === btn));
+                content.querySelectorAll('.spot-tab-panel').forEach((panel) => {
+                    panel.style.display = panel.dataset.spotTabPanel === tab ? 'block' : 'none';
+                });
+            });
+        });
+
+        // --- Звёзды в "Обзоре" — только открывают модалку оценки/отзыва ---
+        const spotCardEl = content.querySelector('.spot-card');
+        const reviewStarsWrap = content.querySelector('#spot-card-review-stars');
+        if (reviewStarsWrap && spotCardEl) {
+            reviewStarsWrap.querySelectorAll('.spot-review-star').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    openReviewModal(
+                        spotCardEl.dataset.spotId,
+                        spotCardEl.dataset.spotTitle,
+                        spotCardEl.dataset.spotPhoto,
+                    );
+                    setReviewModalScore(parseInt(btn.dataset.score, 10));
+                });
             });
         }
     }
@@ -1233,6 +1469,82 @@
     document.getElementById('profile-settings-close').addEventListener('click', closeProfileSettings);
     profileSettingsOverlay.addEventListener('click', (e) => {
         if (e.target === profileSettingsOverlay) closeProfileSettings();
+    });
+
+    // --- Модалка "Как вам это место?" — оценка + комментарий + фото одним действием ---
+    const reviewModalOverlay = document.getElementById('review-modal-overlay');
+    const reviewModalStarsWrap = document.getElementById('review-modal-stars');
+    const reviewModalScoreInput = document.getElementById('review-modal-score-input');
+    const reviewModalTextInput = document.getElementById('review-modal-text');
+    const reviewModalImageInput = document.getElementById('review-modal-image');
+    const reviewModalImageName = document.getElementById('review-modal-image-name');
+    const reviewModalForm = document.getElementById('review-modal-form');
+    const reviewModalSaveBtn = document.getElementById('review-modal-save');
+    let reviewModalSpotId = null;
+
+    function paintReviewStars(score) {
+        reviewModalStarsWrap.querySelectorAll('.spot-review-star').forEach((btn) => {
+            btn.classList.toggle('filled', parseInt(btn.dataset.score, 10) <= score);
+        });
+    }
+
+    function setReviewModalScore(score) {
+        reviewModalScoreInput.value = score;
+        paintReviewStars(score);
+    }
+
+    reviewModalStarsWrap.querySelectorAll('.spot-review-star').forEach((btn) => {
+        btn.addEventListener('click', () => setReviewModalScore(parseInt(btn.dataset.score, 10)));
+    });
+
+    function openReviewModal(spotId, title, photoUrl) {
+        reviewModalSpotId = spotId;
+        document.getElementById('review-modal-spot-title').textContent = title || '';
+        const photoWrap = document.getElementById('review-modal-photo-wrap');
+        const photoImg = document.getElementById('review-modal-photo');
+        if (photoUrl) {
+            photoImg.src = photoUrl;
+            photoWrap.style.display = 'block';
+        } else {
+            photoWrap.style.display = 'none';
+        }
+        reviewModalTextInput.value = '';
+        reviewModalImageInput.value = '';
+        reviewModalImageName.textContent = '';
+        setReviewModalScore(0);
+        reviewModalOverlay.style.display = 'flex';
+    }
+
+    function closeReviewModal() {
+        reviewModalOverlay.style.display = 'none';
+        reviewModalSpotId = null;
+    }
+
+    reviewModalImageInput.addEventListener('change', () => {
+        reviewModalImageName.textContent = reviewModalImageInput.files[0] ? reviewModalImageInput.files[0].name : '';
+    });
+
+    reviewModalForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!reviewModalSpotId || parseInt(reviewModalScoreInput.value, 10) < 1) return;
+        reviewModalSaveBtn.disabled = true;
+        fetch(`/spots/${reviewModalSpotId}/review/`, {
+            method: 'POST',
+            headers: { 'X-Panel-Request': '1' },
+            body: new FormData(reviewModalForm),
+        }).then((res) => res.text()).then((html) => {
+            reviewModalSaveBtn.disabled = false;
+            closeReviewModal();
+            const content = document.getElementById('spot-card-content');
+            content.innerHTML = html;
+            startSpotCardCarousel(content);
+            bindSpotCardActions(content);
+        });
+    });
+
+    document.getElementById('review-modal-close').addEventListener('click', closeReviewModal);
+    reviewModalOverlay.addEventListener('click', (e) => {
+        if (e.target === reviewModalOverlay) closeReviewModal();
     });
     {% endif %}
 
