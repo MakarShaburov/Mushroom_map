@@ -108,10 +108,10 @@
         {% if photos_count %}
             <div class="spot-photos-grid">
                 {% for photo in spot.photos.all %}
-                    <img src="{{ photo.image.url }}" alt="{{ spot.title }}" class="spot-photos-grid-item">
+                    <img src="{{ photo.image.url }}" alt="{{ spot.title }}" class="spot-photos-grid-item" data-uploader="{{ spot.author.username }}">
                 {% endfor %}
                 {% for comment in comment_photos %}
-                    <img src="{{ comment.image.url }}" alt="" class="spot-photos-grid-item">
+                    <img src="{{ comment.image.url }}" alt="" class="spot-photos-grid-item" data-uploader="{{ comment.author.username }}">
                 {% endfor %}
             </div>
         {% else %}

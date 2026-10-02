@@ -596,6 +596,7 @@
         border-radius: 8px;
         display: block;
         background: var(--bg);
+        cursor: pointer;
     }
     .spot-comments-list {
         display: flex;
@@ -743,6 +744,98 @@
     #review-modal-save:disabled {
         opacity: 0.6;
         cursor: default;
+    }
+    .photo-lightbox-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.92);
+        z-index: 4000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .photo-lightbox-header {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 20px 24px;
+        color: #fff;
+    }
+    .photo-lightbox-title {
+        font-weight: bold;
+        font-size: 1.2em;
+    }
+    .photo-lightbox-close {
+        border: none;
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        font-size: 18px;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .photo-lightbox-image {
+        max-width: calc(100% - 180px);
+        max-height: calc(100% - 180px);
+        object-fit: contain;
+        border-radius: 6px;
+    }
+    .photo-lightbox-nav {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        font-size: 22px;
+        cursor: pointer;
+    }
+    .photo-lightbox-prev {
+        left: 24px;
+    }
+    .photo-lightbox-next {
+        right: 24px;
+    }
+    .photo-lightbox-footer {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 24px;
+        color: #fff;
+    }
+    .photo-lightbox-author {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: bold;
+    }
+    .photo-lightbox-like-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: none;
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        border-radius: 20px;
+        padding: 8px 16px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    .photo-lightbox-like-btn.liked {
+        color: #ff5b73;
     }
 </style>
 <div style="position: relative;">
@@ -927,6 +1020,27 @@
         <button type="button" class="map-context-menu-item" data-action="route-to">⬇️ Маршрут сюда</button>
         <button type="button" class="map-context-menu-item" data-action="route-from">⬆️ Маршрут отсюда</button>
     </div>
+
+    <div id="photo-lightbox-overlay" class="photo-lightbox-overlay" style="display: none;">
+        <div class="photo-lightbox-header">
+            <div class="photo-lightbox-title" id="photo-lightbox-title"></div>
+            <button type="button" id="photo-lightbox-close" class="photo-lightbox-close" title="Закрыть">✕</button>
+        </div>
+
+        <button type="button" id="photo-lightbox-prev" class="photo-lightbox-nav photo-lightbox-prev" title="Предыдущее фото">‹</button>
+        <img id="photo-lightbox-image" class="photo-lightbox-image" alt="">
+        <button type="button" id="photo-lightbox-next" class="photo-lightbox-nav photo-lightbox-next" title="Следующее фото">›</button>
+
+        <div class="photo-lightbox-footer">
+            <div class="photo-lightbox-author">
+                <span class="user-avatar-badge" id="photo-lightbox-author-avatar"></span>
+                <span id="photo-lightbox-author-name"></span>
+            </div>
+            <button type="button" id="photo-lightbox-like" class="photo-lightbox-like-btn" title="Нравится">
+                <span id="photo-lightbox-like-icon">♡</span>
+            </button>
+        </div>
+    </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -994,6 +1108,61 @@
         }, 5000);
     }
 
+    // --- Полноэкранный просмотр фото (лайтбокс) ---
+    let lightboxPhotos = [];
+    let lightboxIndex = 0;
+
+    function updateLightboxPhoto() {
+        const photo = lightboxPhotos[lightboxIndex];
+        if (!photo) return;
+        document.getElementById('photo-lightbox-image').src = photo.src;
+        document.getElementById('photo-lightbox-author-name').textContent = photo.uploader;
+        document.getElementById('photo-lightbox-author-avatar').textContent = photo.uploader ? photo.uploader[0].toUpperCase() : '?';
+        const likeBtn = document.getElementById('photo-lightbox-like');
+        likeBtn.classList.remove('liked');
+        document.getElementById('photo-lightbox-like-icon').textContent = '♡';
+        const multiple = lightboxPhotos.length > 1;
+        document.getElementById('photo-lightbox-prev').style.display = multiple ? 'flex' : 'none';
+        document.getElementById('photo-lightbox-next').style.display = multiple ? 'flex' : 'none';
+    }
+
+    function openPhotoLightbox(photos, index, title) {
+        lightboxPhotos = photos;
+        lightboxIndex = index;
+        document.getElementById('photo-lightbox-title').textContent = title || '';
+        updateLightboxPhoto();
+        document.getElementById('photo-lightbox-overlay').style.display = 'flex';
+    }
+
+    function closePhotoLightbox() {
+        document.getElementById('photo-lightbox-overlay').style.display = 'none';
+    }
+
+    function showLightboxPhoto(delta) {
+        if (!lightboxPhotos.length) return;
+        lightboxIndex = (lightboxIndex + delta + lightboxPhotos.length) % lightboxPhotos.length;
+        updateLightboxPhoto();
+    }
+
+    document.getElementById('photo-lightbox-close').addEventListener('click', closePhotoLightbox);
+    document.getElementById('photo-lightbox-overlay').addEventListener('click', (e) => {
+        if (e.target.id === 'photo-lightbox-overlay') closePhotoLightbox();
+    });
+    document.getElementById('photo-lightbox-prev').addEventListener('click', () => showLightboxPhoto(-1));
+    document.getElementById('photo-lightbox-next').addEventListener('click', () => showLightboxPhoto(1));
+    document.getElementById('photo-lightbox-like').addEventListener('click', () => {
+        const btn = document.getElementById('photo-lightbox-like');
+        const icon = document.getElementById('photo-lightbox-like-icon');
+        const liked = btn.classList.toggle('liked');
+        icon.textContent = liked ? '♥' : '♡';
+    });
+    document.addEventListener('keydown', (e) => {
+        if (document.getElementById('photo-lightbox-overlay').style.display === 'none') return;
+        if (e.key === 'Escape') closePhotoLightbox();
+        if (e.key === 'ArrowLeft') showLightboxPhoto(-1);
+        if (e.key === 'ArrowRight') showLightboxPhoto(1);
+    });
+
     function setSearchPanelWide(wide) {
         searchPanel.classList.toggle('wide', wide);
         // Колонка кнопок (свернуть/фильтры) стоит слева от панели на
@@ -1023,6 +1192,8 @@
     }
 
     function bindSpotCardActions(content) {
+        const spotCardEl = content.querySelector('.spot-card');
+
         const routeBtn = content.querySelector('.spot-card-route-btn');
         if (routeBtn) {
             routeBtn.addEventListener('click', () => {
@@ -1078,8 +1249,21 @@
             });
         });
 
+        // --- Клик по фото из сетки на вкладке "Фото" — открывает лайтбокс ---
+        const photoGridItems = content.querySelectorAll('.spot-photos-grid-item');
+        if (photoGridItems.length) {
+            const photosList = Array.from(photoGridItems).map((img) => ({
+                src: img.src,
+                uploader: img.dataset.uploader || '',
+            }));
+            photoGridItems.forEach((img, index) => {
+                img.addEventListener('click', () => {
+                    openPhotoLightbox(photosList, index, spotCardEl ? spotCardEl.dataset.spotTitle : '');
+                });
+            });
+        }
+
         // --- Звёзды в "Обзоре" — только открывают модалку оценки/отзыва ---
-        const spotCardEl = content.querySelector('.spot-card');
         const reviewStarsWrap = content.querySelector('#spot-card-review-stars');
         if (reviewStarsWrap && spotCardEl) {
             reviewStarsWrap.querySelectorAll('.spot-review-star').forEach((btn) => {
