@@ -91,12 +91,17 @@ def _spot_card_context(request, spot):
         comment.author_score = scores_by_user.get(comment.author_id)
         comment.user_vote = my_votes.get(comment.id)
 
+    comment_photos = [c for c in comments if c.image]
+    photos_count = spot.photos.count() + len(comment_photos)
+
     return {
         'spot': spot,
         'rounded_rating': rounded_rating,
         'ratings_word': ratings_word,
         'my_score': my_score,
         'comments': comments,
+        'comment_photos': comment_photos,
+        'photos_count': photos_count,
     }
 
 

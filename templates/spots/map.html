@@ -17,6 +17,10 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        transition: width 0.2s ease;
+    }
+    .search-panel.wide {
+        width: 560px;
     }
     .search-panel-tabs {
         position: absolute;
@@ -580,6 +584,19 @@
         color: var(--muted);
         font-size: 0.9em;
     }
+    .spot-photos-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+    }
+    .spot-photos-grid-item {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        border-radius: 8px;
+        display: block;
+        background: var(--bg);
+    }
     .spot-comments-list {
         display: flex;
         flex-direction: column;
@@ -977,6 +994,17 @@
         }, 5000);
     }
 
+    function setSearchPanelWide(wide) {
+        searchPanel.classList.toggle('wide', wide);
+        // Колонка кнопок (свернуть/фильтры) стоит слева от панели на
+        // фиксированном отступе под её обычную ширину (300px) — пересчитываем
+        // его вручную, когда панель расширяется под вкладку "Фото".
+        const tabsColumn = document.querySelector('.search-panel-tabs');
+        if (tabsColumn) {
+            tabsColumn.style.right = wide ? '578px' : '318px';
+        }
+    }
+
     function getCsrfToken() {
         const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
         return match ? decodeURIComponent(match[1]) : '';
@@ -1026,6 +1054,9 @@
                 content.querySelectorAll('.spot-tab-panel').forEach((panel) => {
                     panel.style.display = panel.dataset.spotTabPanel === tab ? 'block' : 'none';
                 });
+                // На вкладке "Фото" панель поиска расширяется, чтобы влезало
+                // больше превью в ряд; на остальных вкладках — обычная ширина.
+                setSearchPanelWide(tab === 'photos');
             });
         });
 
@@ -1066,6 +1097,7 @@
 
     function openSpotSearchCard(spotId) {
         setSearchPanelCollapsed(false);
+        setSearchPanelWide(false);
         showView('spot');
         document.getElementById('spot-card-content').innerHTML = '<p>Загрузка…</p>';
         refreshSpotCard(spotId);
@@ -1234,6 +1266,7 @@
         }
         if (name !== 'spot') {
             stopSpotCardCarousel();
+            setSearchPanelWide(false);
         }
     }
 
