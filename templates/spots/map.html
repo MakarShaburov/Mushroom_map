@@ -1324,9 +1324,10 @@
                 content.querySelectorAll('.spot-tab-panel').forEach((panel) => {
                     panel.style.display = panel.dataset.spotTabPanel === tab ? 'block' : 'none';
                 });
-                // На вкладке "Фото" панель поиска расширяется, чтобы влезало
-                // больше превью в ряд; на остальных вкладках — обычная ширина.
-                setSearchPanelWide(tab === 'photos');
+                // На вкладках "Фото" и "Комментарии" панель поиска шире —
+                // фото нужно место для превью в ряд, комментариям это тоже
+                // идёт на пользу (меньше переносов строк, видно больше сразу).
+                setSearchPanelWide(tab === 'photos' || tab === 'comments');
             });
         });
 
