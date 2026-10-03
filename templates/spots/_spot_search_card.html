@@ -6,6 +6,7 @@
     data-spot-lng="{{ spot.longitude|unlocalize }}"
     data-spot-title="{{ spot.title }}"
     data-spot-photo="{% if spot.photos.first %}{{ spot.photos.first.image.url }}{% endif %}"
+    data-spot-my-score="{{ my_score }}"
 >
     {% if spot.photos.all %}
         <div class="spot-card-photos">
@@ -120,7 +121,79 @@
     </div>
 
     <div class="spot-tab-panel" data-spot-tab-panel="comments" style="display: none;">
-        <p class="spot-card-empty">Отдельная вкладка «Комментарии» появится здесь позже.</p>
+        <div class="spot-rating-summary">
+            <div class="spot-rating-summary-score">{{ spot.average_rating|floatformat:1|default:"—" }}</div>
+            <div class="spot-rating-summary-stars">{% for i in "12345" %}{% if forloop.counter <= rounded_rating %}★{% else %}☆{% endif %}{% endfor %}</div>
+            <div class="spot-rating-summary-count">{{ spot.ratings_count }} {{ ratings_word }}</div>
+        </div>
+
+        {% if user.is_authenticated and my_score %}
+            <p class="spot-my-review-label">Вы оценили это место</p>
+            <div class="spot-my-review">
+                <div class="spot-comment-header">
+                    <span class="user-avatar-badge">{{ user.username|first|upper }}</span>
+                    <div class="spot-comment-header-info">
+                        <div class="spot-comment-author">{{ user.username }}</div>
+                        <div class="spot-comment-meta-row">
+                            <span class="spot-comment-author-stars">{% for i in "12345" %}{% if forloop.counter <= my_score %}★{% else %}☆{% endif %}{% endfor %}</span>
+                            {% if my_rating %}<span class="spot-comment-date">{{ my_rating.created_at|date:"d.m.Y" }}</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+
+        {% if user.is_authenticated %}
+            <button type="button" class="spot-write-review-btn" id="spot-write-review-btn">✎ Написать отзыв</button>
+        {% endif %}
+
+        <div class="spot-comments-sort-row">
+            <p class="spot-comments-count-label">{{ comments|length }} {{ reviews_word }}</p>
+            <div class="spot-comments-sort">
+                <button type="button" class="spot-comments-sort-btn" id="spot-comments-sort-toggle">
+                    <span id="spot-comments-sort-label">По умолчанию</span> <span class="spot-comments-sort-arrow">▾</span>
+                </button>
+                <div class="spot-comments-sort-menu" id="spot-comments-sort-menu" style="display: none;">
+                    <button type="button" class="spot-comments-sort-option active" data-sort="default">По умолчанию</button>
+                    <button type="button" class="spot-comments-sort-option" data-sort="newest">По новизне</button>
+                    <button type="button" class="spot-comments-sort-option" data-sort="negative">Сначала отрицательные</button>
+                    <button type="button" class="spot-comments-sort-option" data-sort="positive">Сначала положительные</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="spot-comments-list" id="spot-comments-tab-list">
+            {% for comment in comments %}
+                <div class="spot-comment-row" data-created="{{ comment.created_at|date:'U' }}" data-score="{{ comment.author_score|default:0 }}">
+                    <div class="spot-comment-header">
+                        <span class="user-avatar-badge">{{ comment.author.username|first|upper }}</span>
+                        <div class="spot-comment-header-info">
+                            <div class="spot-comment-author">{{ comment.author.username }}</div>
+                            <div class="spot-comment-meta-row">
+                                {% if comment.author_score %}
+                                    <span class="spot-comment-author-stars">{% for i in "12345" %}{% if forloop.counter <= comment.author_score %}★{% else %}☆{% endif %}{% endfor %}</span>
+                                {% endif %}
+                                <span class="spot-comment-date">{{ comment.created_at|date:"d.m.Y" }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="spot-comment-text">{{ comment.text }}</p>
+                    {% if comment.image %}
+                        <img src="{{ comment.image.url }}" alt="" class="spot-comment-photo">
+                    {% endif %}
+                    <div class="spot-comment-votes">
+                        {% if user.is_authenticated %}
+                            <button type="button" class="spot-comment-vote-btn{% if comment.user_vote == True %} active{% endif %}" data-comment-id="{{ comment.pk }}" data-is-like="1">👍 {{ comment.likes_count }}</button>
+                            <button type="button" class="spot-comment-vote-btn{% if comment.user_vote == False %} active{% endif %}" data-comment-id="{{ comment.pk }}" data-is-like="0">👎 {{ comment.dislikes_count }}</button>
+                        {% else %}
+                            <span class="spot-comment-vote-static">👍 {{ comment.likes_count }} · 👎 {{ comment.dislikes_count }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <p class="spot-card-empty">Отзывов пока нет — станьте первым.</p>
+            {% endfor %}
+        </div>
     </div>
 
     <p><a href="{% url 'spots:spot_detail' spot.pk %}">Открыть отдельную страницу места →</a></p>

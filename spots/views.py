@@ -75,6 +75,7 @@ def _spot_card_context(request, spot):
     rounded_rating = round(spot.average_rating) if spot.average_rating else 0
     ratings_word = ru_plural(spot.ratings_count, ('оценка', 'оценки', 'оценок'))
     my_score = 0
+    my_rating = None
     if request.user.is_authenticated:
         my_rating = spot.ratings.filter(user=request.user).first()
         my_score = my_rating.score if my_rating else 0
@@ -93,15 +94,18 @@ def _spot_card_context(request, spot):
 
     comment_photos = [c for c in comments if c.image]
     photos_count = spot.photos.count() + len(comment_photos)
+    reviews_word = ru_plural(len(comments), ('отзыв', 'отзыва', 'отзывов'))
 
     return {
         'spot': spot,
         'rounded_rating': rounded_rating,
         'ratings_word': ratings_word,
         'my_score': my_score,
+        'my_rating': my_rating,
         'comments': comments,
         'comment_photos': comment_photos,
         'photos_count': photos_count,
+        'reviews_word': reviews_word,
     }
 
 
