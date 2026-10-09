@@ -768,6 +768,10 @@
     .photo-lightbox-title {
         font-weight: bold;
         font-size: 1.2em;
+        cursor: pointer;
+    }
+    .photo-lightbox-title:hover {
+        text-decoration: underline;
     }
     .photo-lightbox-close {
         border: none;
@@ -796,8 +800,17 @@
         border: none;
         background: rgba(255, 255, 255, 0.15);
         color: #fff;
-        font-size: 22px;
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+    }
+    .photo-lightbox-nav:hover {
+        background: rgba(255, 255, 255, 0.28);
+    }
+    .photo-lightbox-nav svg {
+        display: block;
     }
     .photo-lightbox-prev {
         left: 24px;
@@ -836,6 +849,10 @@
     }
     .photo-lightbox-like-btn.liked {
         color: #ff5b73;
+    }
+    #photo-lightbox-like-count {
+        min-width: 1em;
+        text-align: left;
     }
     .spot-rating-summary {
         background: var(--bg);
@@ -1122,13 +1139,17 @@
 
     <div id="photo-lightbox-overlay" class="photo-lightbox-overlay" style="display: none;">
         <div class="photo-lightbox-header">
-            <div class="photo-lightbox-title" id="photo-lightbox-title"></div>
+            <div class="photo-lightbox-title" id="photo-lightbox-title" title="Вернуться к карточке места"></div>
             <button type="button" id="photo-lightbox-close" class="photo-lightbox-close" title="Закрыть">✕</button>
         </div>
 
-        <button type="button" id="photo-lightbox-prev" class="photo-lightbox-nav photo-lightbox-prev" title="Предыдущее фото">‹</button>
+        <button type="button" id="photo-lightbox-prev" class="photo-lightbox-nav photo-lightbox-prev" title="Предыдущее фото">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
         <img id="photo-lightbox-image" class="photo-lightbox-image" alt="">
-        <button type="button" id="photo-lightbox-next" class="photo-lightbox-nav photo-lightbox-next" title="Следующее фото">›</button>
+        <button type="button" id="photo-lightbox-next" class="photo-lightbox-nav photo-lightbox-next" title="Следующее фото">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
 
         <div class="photo-lightbox-footer">
             <div class="photo-lightbox-author">
@@ -1137,6 +1158,7 @@
             </div>
             <button type="button" id="photo-lightbox-like" class="photo-lightbox-like-btn" title="Нравится">
                 <span id="photo-lightbox-like-icon">♡</span>
+                <span id="photo-lightbox-like-count"></span>
             </button>
         </div>
     </div>
@@ -1208,8 +1230,24 @@
     }
 
     // --- Полноэкранный просмотр фото (лайтбокс) ---
+    const CAN_LIKE_PHOTOS = {% if user.is_authenticated %}true{% else %}false{% endif %};
     let lightboxPhotos = [];
     let lightboxIndex = 0;
+
+    function renderLightboxHeart() {
+        const photo = lightboxPhotos[lightboxIndex];
+        const likeBtn = document.getElementById('photo-lightbox-like');
+        const icon = document.getElementById('photo-lightbox-like-icon');
+        const countEl = document.getElementById('photo-lightbox-like-count');
+        if (!photo || !photo.kind || !CAN_LIKE_PHOTOS) {
+            likeBtn.style.display = 'none';
+            return;
+        }
+        likeBtn.style.display = 'flex';
+        likeBtn.classList.toggle('liked', !!photo.liked);
+        icon.textContent = photo.liked ? '♥' : '♡';
+        countEl.textContent = photo.heartCount ? String(photo.heartCount) : '';
+    }
 
     function updateLightboxPhoto() {
         const photo = lightboxPhotos[lightboxIndex];
@@ -1217,9 +1255,7 @@
         document.getElementById('photo-lightbox-image').src = photo.src;
         document.getElementById('photo-lightbox-author-name').textContent = photo.uploader;
         document.getElementById('photo-lightbox-author-avatar').textContent = photo.uploader ? photo.uploader[0].toUpperCase() : '?';
-        const likeBtn = document.getElementById('photo-lightbox-like');
-        likeBtn.classList.remove('liked');
-        document.getElementById('photo-lightbox-like-icon').textContent = '♡';
+        renderLightboxHeart();
         const multiple = lightboxPhotos.length > 1;
         document.getElementById('photo-lightbox-prev').style.display = multiple ? 'flex' : 'none';
         document.getElementById('photo-lightbox-next').style.display = multiple ? 'flex' : 'none';
@@ -1243,6 +1279,10 @@
         updateLightboxPhoto();
     }
 
+    // Клик по названию места — тоже закрывает просмотр и возвращает
+    // к карточке места (та же самая карточка — лайтбокс лишь лежит
+    // поверх неё, так что "вернуться" это просто "закрыть").
+    document.getElementById('photo-lightbox-title').addEventListener('click', closePhotoLightbox);
     document.getElementById('photo-lightbox-close').addEventListener('click', closePhotoLightbox);
     document.getElementById('photo-lightbox-overlay').addEventListener('click', (e) => {
         if (e.target.id === 'photo-lightbox-overlay') closePhotoLightbox();
@@ -1250,10 +1290,20 @@
     document.getElementById('photo-lightbox-prev').addEventListener('click', () => showLightboxPhoto(-1));
     document.getElementById('photo-lightbox-next').addEventListener('click', () => showLightboxPhoto(1));
     document.getElementById('photo-lightbox-like').addEventListener('click', () => {
-        const btn = document.getElementById('photo-lightbox-like');
-        const icon = document.getElementById('photo-lightbox-like-icon');
-        const liked = btn.classList.toggle('liked');
-        icon.textContent = liked ? '♥' : '♡';
+        const photo = lightboxPhotos[lightboxIndex];
+        if (!photo || !photo.kind) return;
+        const formData = new FormData();
+        formData.append('kind', photo.kind);
+        formData.append('id', photo.id);
+        fetch('/photos/like/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() },
+            body: formData,
+        }).then((res) => res.json()).then((data) => {
+            photo.liked = data.liked;
+            photo.heartCount = data.count;
+            renderLightboxHeart();
+        });
     });
     document.addEventListener('keydown', (e) => {
         if (document.getElementById('photo-lightbox-overlay').style.display === 'none') return;
@@ -1355,6 +1405,10 @@
             const photosList = Array.from(photoGridItems).map((img) => ({
                 src: img.src,
                 uploader: img.dataset.uploader || '',
+                kind: img.dataset.photoKind,
+                id: img.dataset.photoId,
+                heartCount: parseInt(img.dataset.heartCount, 10) || 0,
+                liked: img.dataset.liked === '1',
             }));
             photoGridItems.forEach((img, index) => {
                 img.addEventListener('click', () => {

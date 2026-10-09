@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -181,3 +183,30 @@ class SpotRating(models.Model):
 
     def __str__(self):
         return f'{self.user} -> {self.spot}: {self.score}'
+
+
+class PhotoLike(models.Model):
+    """Сердечко на фото в полноэкранном просмотре — отдельно от
+    лайка/дизлайка самого комментария. Привязывается через generic FK
+    либо к SpotPhoto (своё фото места), либо к SpotComment (фото в
+    комментарии), чтобы не заводить две одинаковые модели."""
+
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='photo_likes',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Сердечко на фото'
+        verbose_name_plural = 'Сердечки на фото'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['content_type', 'object_id', 'user'], name='unique_photo_like_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user} ❤ {self.content_type.model}#{self.object_id}'

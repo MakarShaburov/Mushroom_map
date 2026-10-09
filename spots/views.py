@@ -1,12 +1,17 @@
 from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Count
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .models import CommentVote, MushroomSpot, MushroomType, SpotComment, SpotPhoto, SpotRating
+from .models import (
+    CommentVote, MushroomSpot, MushroomType, PhotoLike, SpotComment, SpotPhoto, SpotRating,
+)
 from .utils import ru_plural
 
 PANEL_HEADER = 'X-Panel-Request'
+PHOTO_LIKE_MODELS = {'spot': SpotPhoto, 'comment': SpotComment}
 
 
 def map_view(request):
@@ -93,11 +98,46 @@ def _spot_card_context(request, spot):
         comment.user_vote = my_votes.get(comment.id)
 
     comment_photos = [c for c in comments if c.image]
-    photos_count = spot.photos.count() + len(comment_photos)
+    spot_photos = list(spot.photos.all())
+    photos_count = len(spot_photos) + len(comment_photos)
     reviews_word = ru_plural(len(comments), ('отзыв', 'отзыва', 'отзывов'))
+
+    # Сердечки на фото (своё фото места и фото из комментариев) — отдельно
+    # от лайка/дизлайка самого комментария.
+    spot_ct = ContentType.objects.get_for_model(SpotPhoto)
+    comment_ct = ContentType.objects.get_for_model(SpotComment)
+    spot_photo_ids = [p.pk for p in spot_photos]
+    comment_photo_ids = [c.pk for c in comment_photos]
+
+    spot_heart_counts = dict(
+        PhotoLike.objects.filter(content_type=spot_ct, object_id__in=spot_photo_ids)
+        .values('object_id').annotate(n=Count('id')).values_list('object_id', 'n')
+    )
+    comment_heart_counts = dict(
+        PhotoLike.objects.filter(content_type=comment_ct, object_id__in=comment_photo_ids)
+        .values('object_id').annotate(n=Count('id')).values_list('object_id', 'n')
+    )
+    my_spot_hearts = set()
+    my_comment_hearts = set()
+    if request.user.is_authenticated:
+        my_spot_hearts = set(
+            PhotoLike.objects.filter(content_type=spot_ct, object_id__in=spot_photo_ids, user=request.user)
+            .values_list('object_id', flat=True)
+        )
+        my_comment_hearts = set(
+            PhotoLike.objects.filter(content_type=comment_ct, object_id__in=comment_photo_ids, user=request.user)
+            .values_list('object_id', flat=True)
+        )
+    for p in spot_photos:
+        p.heart_count = spot_heart_counts.get(p.pk, 0)
+        p.liked_by_me = p.pk in my_spot_hearts
+    for c in comment_photos:
+        c.heart_count = comment_heart_counts.get(c.pk, 0)
+        c.liked_by_me = c.pk in my_comment_hearts
 
     return {
         'spot': spot,
+        'spot_photos': spot_photos,
         'rounded_rating': rounded_rating,
         'ratings_word': ratings_word,
         'my_score': my_score,
@@ -133,6 +173,28 @@ def spot_review_create(request, pk):
     if text:
         SpotComment.objects.create(spot=spot, author=request.user, text=text, image=image)
     return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
+
+
+@login_required
+@require_POST
+def photo_like_toggle(request):
+    """Сердечко на фото в полноэкранном просмотре. kind — 'spot' (своё
+    фото места) или 'comment' (фото в комментарии), id — pk объекта."""
+    model = PHOTO_LIKE_MODELS.get(request.POST.get('kind'))
+    if not model:
+        return JsonResponse({'error': 'invalid kind'}, status=400)
+    obj = get_object_or_404(model, pk=request.POST.get('id'))
+    content_type = ContentType.objects.get_for_model(model)
+    like, created = PhotoLike.objects.get_or_create(
+        content_type=content_type, object_id=obj.pk, user=request.user,
+    )
+    if not created:
+        like.delete()
+        liked = False
+    else:
+        liked = True
+    count = PhotoLike.objects.filter(content_type=content_type, object_id=obj.pk).count()
+    return JsonResponse({'liked': liked, 'count': count})
 
 
 def spot_detail(request, pk):

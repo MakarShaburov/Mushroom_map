@@ -5,17 +5,17 @@
     data-spot-lat="{{ spot.latitude|unlocalize }}"
     data-spot-lng="{{ spot.longitude|unlocalize }}"
     data-spot-title="{{ spot.title }}"
-    data-spot-photo="{% if spot.photos.first %}{{ spot.photos.first.image.url }}{% endif %}"
+    data-spot-photo="{% if spot_photos %}{{ spot_photos.0.image.url }}{% endif %}"
     data-spot-my-score="{{ my_score }}"
 >
-    {% if spot.photos.all %}
+    {% if spot_photos %}
         <div class="spot-card-photos">
-            {% for photo in spot.photos.all %}
+            {% for photo in spot_photos %}
                 <img src="{{ photo.image.url }}" alt="{{ spot.title }}" class="spot-card-photo{% if forloop.first %} active{% endif %}">
             {% endfor %}
-            {% if spot.photos.all|length > 1 %}
+            {% if spot_photos|length > 1 %}
                 <div class="spot-card-photo-dots">
-                    {% for photo in spot.photos.all %}
+                    {% for photo in spot_photos %}
                         <span class="spot-card-photo-dot{% if forloop.first %} active{% endif %}"></span>
                     {% endfor %}
                 </div>
@@ -52,7 +52,7 @@
     <div class="spot-card-tabs">
         <button type="button" class="spot-tab-btn active" data-spot-tab="overview">Обзор</button>
         <button type="button" class="spot-tab-btn" data-spot-tab="photos">Фото <span class="spot-tab-badge">{{ photos_count }}</span></button>
-        <button type="button" class="spot-tab-btn" data-spot-tab="comments">Комментарии <span class="spot-tab-badge">{{ spot.comments.count }}</span></button>
+        <button type="button" class="spot-tab-btn" data-spot-tab="comments">Комментарии <span class="spot-tab-badge">{{ comments|length }}</span></button>
     </div>
 
     <div class="spot-tab-panel" data-spot-tab-panel="overview">
@@ -108,11 +108,23 @@
     <div class="spot-tab-panel" data-spot-tab-panel="photos" style="display: none;">
         {% if photos_count %}
             <div class="spot-photos-grid">
-                {% for photo in spot.photos.all %}
-                    <img src="{{ photo.image.url }}" alt="{{ spot.title }}" class="spot-photos-grid-item" data-uploader="{{ spot.author.username }}">
+                {% for photo in spot_photos %}
+                    <img
+                        src="{{ photo.image.url }}" alt="{{ spot.title }}" class="spot-photos-grid-item"
+                        data-uploader="{{ spot.author.username }}"
+                        data-photo-kind="spot" data-photo-id="{{ photo.pk }}"
+                        data-heart-count="{{ photo.heart_count }}"
+                        data-liked="{% if photo.liked_by_me %}1{% else %}0{% endif %}"
+                    >
                 {% endfor %}
                 {% for comment in comment_photos %}
-                    <img src="{{ comment.image.url }}" alt="" class="spot-photos-grid-item" data-uploader="{{ comment.author.username }}">
+                    <img
+                        src="{{ comment.image.url }}" alt="" class="spot-photos-grid-item"
+                        data-uploader="{{ comment.author.username }}"
+                        data-photo-kind="comment" data-photo-id="{{ comment.pk }}"
+                        data-heart-count="{{ comment.heart_count }}"
+                        data-liked="{% if comment.liked_by_me %}1{% else %}0{% endif %}"
+                    >
                 {% endfor %}
             </div>
         {% else %}
