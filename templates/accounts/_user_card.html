@@ -21,6 +21,7 @@
                 <h2 class="user-card-name">{{ person.username }}</h2>
                 <span class="user-card-rating"><span class="user-card-rating-star">★</span> {{ rating|default:"—" }}</span>
             </div>
+            {% if bio %}<p class="user-card-bio">{{ bio }}</p>{% endif %}
         </div>
 
         <div class="user-card-stat">
@@ -54,12 +55,44 @@
         {% endif %}
 
         <div class="spot-card-tabs">
-            <button type="button" class="spot-tab-btn active" data-user-tab="reviews">Отзывы <span class="spot-tab-badge">{{ reviews_count }}</span></button>
+            <button type="button" class="spot-tab-btn active" data-user-tab="comments">Комментарии <span class="spot-tab-badge">{{ comments_count }}</span></button>
             <button type="button" class="spot-tab-btn" data-user-tab="spots">Грибные места <span class="spot-tab-badge">{{ spots_count }}</span></button>
         </div>
 
-        <div class="user-tab-panel" data-user-tab-panel="reviews">
-            <p class="spot-card-empty">Здесь будут отзывы пользователя.</p>
+        <div class="user-tab-panel" data-user-tab-panel="comments">
+            <div class="spot-comments-list">
+                {% for comment in comments %}
+                    <div class="spot-comment-row">
+                        <button type="button" class="user-comment-spot" data-spot-open="{{ comment.spot_id }}" title="Открыть место">{{ comment.spot.title }}</button>
+                        <div class="spot-comment-meta-row">
+                            {% if comment.score %}
+                                <span class="spot-comment-author-stars" title="Оценка места: {{ comment.score }} из 5">{% for i in "12345" %}{% if forloop.counter <= comment.score %}★{% else %}☆{% endif %}{% endfor %}</span>
+                            {% endif %}
+                            <span class="spot-comment-date">{{ comment.created_at|date:"d.m.Y" }}</span>
+                        </div>
+                        <p class="spot-comment-text">{{ comment.text }}</p>
+                        {% with photos=comment.photos.all %}
+                            {% if photos %}
+                                <div class="spot-comment-photos">
+                                    {% for photo in photos %}
+                                        <img src="{{ photo.image.url }}" alt="" class="spot-comment-photo">
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endwith %}
+                        <div class="spot-comment-votes">
+                            {% if user.is_authenticated %}
+                                <button type="button" class="spot-comment-vote-btn{% if comment.my_vote is True %} active{% endif %}" data-vote-url="{% url 'spots:comment_vote' comment.pk %}" data-is-like="1">👍 {{ comment.likes_n }}</button>
+                                <button type="button" class="spot-comment-vote-btn{% if comment.my_vote is False %} active{% endif %}" data-vote-url="{% url 'spots:comment_vote' comment.pk %}" data-is-like="0">👎 {{ comment.dislikes_n }}</button>
+                            {% else %}
+                                <span class="spot-comment-vote-static">👍 {{ comment.likes_n }} · 👎 {{ comment.dislikes_n }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="spot-card-empty">У пользователя пока нет комментариев.</p>
+                {% endfor %}
+            </div>
         </div>
         <div class="user-tab-panel" data-user-tab-panel="spots" style="display: none;">
             <p class="spot-card-empty">Здесь будут грибные места пользователя.</p>

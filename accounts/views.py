@@ -3,12 +3,13 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
+from django.db.models import Count, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from spots.models import MushroomSpot
+from spots.models import CommentVote, MushroomSpot, SpotRating
 from spots.views import PANEL_HEADER, render_spot_panel_response
 
 from .forms import ProfileBioForm, SignUpForm
@@ -94,6 +95,38 @@ def _is_blocked_by(viewer, person):
     )
 
 
+def _user_comments(person, viewer):
+    """Все комментарии пользователя, новые сверху. К каждому прикреплены:
+    оценка, которую автор поставил этому месту (score), число лайков и
+    дизлайков и голос текущего зрителя (my_vote: True / False / None)."""
+    comments = list(
+        person.spot_comments
+        .select_related('spot')
+        .prefetch_related('photos')
+        .annotate(
+            likes_n=Count('votes', filter=Q(votes__is_like=True)),
+            dislikes_n=Count('votes', filter=Q(votes__is_like=False)),
+        )
+        .order_by('-created_at', '-pk')
+    )
+    scores = dict(
+        SpotRating.objects
+        .filter(user=person, spot_id__in={c.spot_id for c in comments})
+        .values_list('spot_id', 'score')
+    )
+    my_votes = {}
+    if viewer.is_authenticated:
+        my_votes = dict(
+            CommentVote.objects
+            .filter(user=viewer, comment_id__in=[c.pk for c in comments])
+            .values_list('comment_id', 'is_like')
+        )
+    for comment in comments:
+        comment.score = scores.get(comment.spot_id)
+        comment.my_vote = my_votes.get(comment.pk)
+    return comments
+
+
 def _user_card_context(request, person):
     viewer = request.user
     is_self = viewer.is_authenticated and viewer == person
@@ -104,10 +137,13 @@ def _user_card_context(request, person):
     }
     if context['restricted']:
         return context
+    comments = _user_comments(person, viewer)
     context.update({
         'rating': person.profile.rating,
+        'bio': person.profile.bio.strip(),
         'spots_count': person.spots.count(),
-        'reviews_count': person.spot_comments.count(),
+        'comments': comments,
+        'comments_count': len(comments),
     })
     if viewer.is_authenticated and not is_self:
         my_rating = UserRating.objects.filter(rater=viewer, rated_user=person).first()

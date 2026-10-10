@@ -288,6 +288,14 @@ def comment_vote(request, comment_id):
         CommentVote.objects.update_or_create(
             comment=comment, user=request.user, defaults={'is_like': is_like},
         )
+    if request.headers.get('X-Vote-Json'):
+        # Голос из окна профиля: обновляем счётчики на месте, без перерисовки.
+        my_vote = CommentVote.objects.filter(comment=comment, user=request.user).first()
+        return JsonResponse({
+            'likes': comment.likes_count,
+            'dislikes': comment.dislikes_count,
+            'my_vote': my_vote.is_like if my_vote else None,
+        })
     if request.headers.get(PANEL_HEADER):
         return render_spot_panel_response(request, comment.spot)
     return redirect('spots:spot_detail', pk=comment.spot_id)

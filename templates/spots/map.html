@@ -804,6 +804,30 @@
         flex-wrap: wrap;
         min-width: 0;
     }
+    .user-card-bio {
+        margin: 0;
+        max-width: 100%;
+        color: var(--muted);
+        font-size: 0.9em;
+        white-space: pre-line;
+        overflow-wrap: anywhere;
+    }
+    .user-comment-spot {
+        display: block;
+        max-width: 100%;
+        margin: 0 0 4px;
+        padding: 0;
+        border: none;
+        background: none;
+        color: var(--text);
+        font: inherit;
+        font-weight: bold;
+        text-align: left;
+        cursor: pointer;
+    }
+    .user-comment-spot:hover {
+        text-decoration: underline;
+    }
     .user-card-name {
         margin: 0;
         font-size: 1.3em;
@@ -1831,6 +1855,38 @@
             card.querySelectorAll('[data-user-tab-panel]').forEach((panel) => {
                 panel.style.display = panel.dataset.userTabPanel === tabBtn.dataset.userTab ? 'block' : 'none';
             });
+            return;
+        }
+
+        // Название места в комментарии открывает карточку этого места
+        const spotLink = e.target.closest('[data-spot-open]');
+        if (spotLink) {
+            openSpotSearchCard(spotLink.dataset.spotOpen);
+            return;
+        }
+
+        // Лайк / дизлайк комментария: обновляем счётчики на месте
+        const voteBtn = e.target.closest('[data-vote-url]');
+        if (voteBtn) {
+            const box = voteBtn.closest('.spot-comment-votes');
+            const formData = new FormData();
+            formData.append('is_like', voteBtn.dataset.isLike);
+            voteBtn.disabled = true;
+            fetch(voteBtn.dataset.voteUrl, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': getCsrfToken(), 'X-Vote-Json': '1' },
+                body: formData,
+            }).then(response => {
+                if (!response.ok) throw new Error('request failed');
+                return response.json();
+            }).then(data => {
+                const likeBtn = box.querySelector('[data-is-like="1"]');
+                const dislikeBtn = box.querySelector('[data-is-like="0"]');
+                likeBtn.textContent = `👍 ${data.likes}`;
+                dislikeBtn.textContent = `👎 ${data.dislikes}`;
+                likeBtn.classList.toggle('active', data.my_vote === true);
+                dislikeBtn.classList.toggle('active', data.my_vote === false);
+            }).catch(alertUserActionFailed).finally(() => { voteBtn.disabled = false; });
             return;
         }
 
