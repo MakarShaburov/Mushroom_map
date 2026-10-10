@@ -127,6 +127,17 @@ def _user_comments(person, viewer):
     return comments
 
 
+def _user_spots(person):
+    """Грибные места пользователя, новые сверху. К каждому месту
+    прикреплено cover — первое фото места (или None). Оценки
+    предзагружены, чтобы average_rating не делал запрос на каждое место."""
+    spots = list(person.spots.prefetch_related('photos', 'ratings__user__profile'))
+    for spot in spots:
+        photos = list(spot.photos.all())
+        spot.cover = photos[0] if photos else None
+    return spots
+
+
 def _user_card_context(request, person):
     viewer = request.user
     is_self = viewer.is_authenticated and viewer == person
@@ -138,10 +149,12 @@ def _user_card_context(request, person):
     if context['restricted']:
         return context
     comments = _user_comments(person, viewer)
+    spots = _user_spots(person)
     context.update({
         'rating': person.profile.rating,
         'bio': person.profile.bio.strip(),
-        'spots_count': person.spots.count(),
+        'spots': spots,
+        'spots_count': len(spots),
         'comments': comments,
         'comments_count': len(comments),
     })

@@ -95,7 +95,34 @@
             </div>
         </div>
         <div class="user-tab-panel" data-user-tab-panel="spots" style="display: none;">
-            <p class="spot-card-empty">Здесь будут грибные места пользователя.</p>
+            <div class="user-spots-list">
+                {% for spot in spots %}
+                    <div class="user-spot-card" data-spot-open="{{ spot.pk }}" title="Открыть место">
+                        <div class="user-spot-thumb">
+                            {% if spot.cover %}
+                                <img src="{{ spot.cover.image.url }}" alt="" loading="lazy">
+                            {% else %}
+                                <span class="user-spot-thumb-empty">🍄</span>
+                            {% endif %}
+                        </div>
+                        <div class="user-spot-info">
+                            <div class="user-spot-head">
+                                <span class="user-spot-title">{{ spot.title }}</span>
+                                {% if spot.average_rating %}
+                                    <span class="user-spot-rating"><span class="user-card-rating-star">★</span> {{ spot.average_rating|floatformat:1 }}</span>
+                                {% else %}
+                                    <span class="user-spot-rating">Нет оценок</span>
+                                {% endif %}
+                            </div>
+                            {% if spot.description %}
+                                <p class="user-spot-desc">{{ spot.description }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="spot-card-empty">У пользователя пока нет грибных мест.</p>
+                {% endfor %}
+            </div>
         </div>
     {% endif %}
 </div>

@@ -61,7 +61,12 @@ class MushroomSpot(models.Model):
         """Средний рейтинг места, взвешенный по рейтингу того, кто
         оценивал: чем выше рейтинг пользователя, тем весомее его
         голос (см. accounts.utils.vote_weight)."""
-        ratings = self.ratings.select_related('user__profile').all()
+        if 'ratings' in getattr(self, '_prefetched_objects_cache', {}):
+            # Оценки уже предзагружены (prefetch_related('ratings__user__profile')),
+            # например для списка мест в профиле — лишних запросов не делаем.
+            ratings = self.ratings.all()
+        else:
+            ratings = self.ratings.select_related('user__profile').all()
         if not ratings:
             return None
         weighted_sum = 0.0
