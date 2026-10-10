@@ -125,9 +125,9 @@
         <strong>{{ comment.author.username }}</strong>
         <small style="color: #888;">{{ comment.created_at|date:"d.m.Y H:i" }}</small><br>
         {{ comment.text }}
-        {% if comment.image %}
-            <br><img src="{{ comment.image.url }}" alt="Фото к комментарию" style="max-height: 200px; border-radius: 4px; margin-top: 6px;">
-        {% endif %}
+        {% for photo in comment.photos.all %}
+            {% if forloop.first %}<br>{% endif %}<img src="{{ photo.image.url }}" alt="Фото к комментарию" style="max-height: 200px; border-radius: 4px; margin-top: 6px;">
+        {% endfor %}
         <br>
         {% if user.is_authenticated %}
         <form method="post" action="{% url 'spots:comment_vote' comment.pk %}" style="display: inline;">
@@ -152,7 +152,7 @@
 <form method="post" action="{% url 'spots:spot_comment_create' spot.pk %}" enctype="multipart/form-data">
     {% csrf_token %}
     <textarea name="text" placeholder="Написать комментарий..." style="width: 100%; box-sizing: border-box;" required></textarea>
-    <p><label>Фото к комментарию (необязательно): <input type="file" name="image" accept="image/*"></label></p>
+    <p><label>Фото к комментарию (необязательно): <input type="file" name="images" accept="image/*" multiple></label></p>
     <button type="submit">Отправить</button>
 </form>
 {% else %}

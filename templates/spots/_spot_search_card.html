@@ -87,9 +87,15 @@
                         </div>
                     </div>
                     <p class="spot-comment-text">{{ comment.text }}</p>
-                    {% if comment.image %}
-                        <img src="{{ comment.image.url }}" alt="" class="spot-comment-photo">
-                    {% endif %}
+                    {% with photos=comment.photos.all %}
+                        {% if photos %}
+                            <div class="spot-comment-photos">
+                                {% for photo in photos %}
+                                    <img src="{{ photo.image.url }}" alt="" class="spot-comment-photo">
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endwith %}
                     <div class="spot-comment-votes">
                         {% if user.is_authenticated %}
                             <button type="button" class="spot-comment-vote-btn{% if comment.user_vote == True %} active{% endif %}" data-comment-id="{{ comment.pk }}" data-is-like="1">👍 {{ comment.likes_count }}</button>
@@ -117,13 +123,13 @@
                         data-liked="{% if photo.liked_by_me %}1{% else %}0{% endif %}"
                     >
                 {% endfor %}
-                {% for comment in comment_photos %}
+                {% for photo in comment_photos %}
                     <img
-                        src="{{ comment.image.url }}" alt="" class="spot-photos-grid-item"
-                        data-uploader="{{ comment.author.username }}"
-                        data-photo-kind="comment" data-photo-id="{{ comment.pk }}"
-                        data-heart-count="{{ comment.heart_count }}"
-                        data-liked="{% if comment.liked_by_me %}1{% else %}0{% endif %}"
+                        src="{{ photo.image.url }}" alt="" class="spot-photos-grid-item"
+                        data-uploader="{{ photo.comment.author.username }}"
+                        data-photo-kind="comment_photo" data-photo-id="{{ photo.pk }}"
+                        data-heart-count="{{ photo.heart_count }}"
+                        data-liked="{% if photo.liked_by_me %}1{% else %}0{% endif %}"
                     >
                 {% endfor %}
             </div>
@@ -190,9 +196,15 @@
                         </div>
                     </div>
                     <p class="spot-comment-text">{{ comment.text }}</p>
-                    {% if comment.image %}
-                        <img src="{{ comment.image.url }}" alt="" class="spot-comment-photo">
-                    {% endif %}
+                    {% with photos=comment.photos.all %}
+                        {% if photos %}
+                            <div class="spot-comment-photos">
+                                {% for photo in photos %}
+                                    <img src="{{ photo.image.url }}" alt="" class="spot-comment-photo">
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endwith %}
                     <div class="spot-comment-votes">
                         {% if user.is_authenticated %}
                             <button type="button" class="spot-comment-vote-btn{% if comment.user_vote == True %} active{% endif %}" data-comment-id="{{ comment.pk }}" data-is-like="1">👍 {{ comment.likes_count }}</button>

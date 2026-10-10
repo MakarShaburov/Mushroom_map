@@ -1,6 +1,8 @@
 from django.contrib import admin
 
-from .models import CommentVote, MushroomSpot, MushroomType, SpotComment, SpotPhoto, SpotRating
+from .models import (
+    CommentPhoto, CommentVote, MushroomSpot, MushroomType, SpotComment, SpotPhoto, SpotRating,
+)
 
 
 @admin.register(MushroomType)
@@ -33,14 +35,20 @@ class SpotRatingAdmin(admin.ModelAdmin):
     list_filter = ('score',)
 
 
+class CommentPhotoInline(admin.TabularInline):
+    model = CommentPhoto
+    extra = 0
+
+
 @admin.register(SpotComment)
 class SpotCommentAdmin(admin.ModelAdmin):
-    list_display = ('spot', 'author', 'has_image', 'likes_count', 'dislikes_count', 'created_at')
+    list_display = ('spot', 'author', 'photos_count', 'likes_count', 'dislikes_count', 'created_at')
     search_fields = ('text', 'author__username', 'spot__title')
+    inlines = [CommentPhotoInline]
 
-    @admin.display(description='Фото', boolean=True)
-    def has_image(self, obj):
-        return bool(obj.image)
+    @admin.display(description='Фото')
+    def photos_count(self, obj):
+        return obj.photos.count()
 
 
 @admin.register(CommentVote)

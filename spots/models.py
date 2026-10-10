@@ -82,7 +82,8 @@ def spot_photo_upload_path(instance, filename):
 
 
 def comment_photo_upload_path(instance, filename):
-    return f'comments/{instance.spot_id}/{filename}'
+    # Имя функции нужно сохранить: на неё ссылается миграция 0006.
+    return f'comments/{instance.comment.spot_id}/{filename}'
 
 
 class SpotPhoto(models.Model):
@@ -113,9 +114,6 @@ class SpotComment(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='spot_comments',
     )
     text = models.TextField('Комментарий', max_length=2000)
-    image = models.ImageField(
-        'Фото', upload_to=comment_photo_upload_path, blank=True, null=True,
-    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -133,6 +131,25 @@ class SpotComment(models.Model):
     @property
     def dislikes_count(self):
         return self.votes.filter(is_like=False).count()
+
+
+class CommentPhoto(models.Model):
+    """Фото, прикреплённое к комментарию. У одного комментария может
+    быть несколько фото."""
+
+    comment = models.ForeignKey(
+        SpotComment, on_delete=models.CASCADE, related_name='photos',
+    )
+    image = models.ImageField('Фото', upload_to=comment_photo_upload_path)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Фото комментария'
+        verbose_name_plural = 'Фото комментариев'
+        ordering = ['uploaded_at', 'pk']
+
+    def __str__(self):
+        return f'Фото к комментарию {self.comment_id}'
 
 
 class CommentVote(models.Model):
@@ -188,7 +205,7 @@ class SpotRating(models.Model):
 class PhotoLike(models.Model):
     """Сердечко на фото в полноэкранном просмотре — отдельно от
     лайка/дизлайка самого комментария. Привязывается через generic FK
-    либо к SpotPhoto (своё фото места), либо к SpotComment (фото в
+    либо к SpotPhoto (своё фото места), либо к CommentPhoto (фото в
     комментарии), чтобы не заводить две одинаковые модели."""
 
     content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)

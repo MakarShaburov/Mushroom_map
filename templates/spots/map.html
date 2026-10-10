@@ -642,12 +642,17 @@
     .spot-comment-text {
         margin: 0 0 8px;
     }
+    .spot-comment-photos {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
     .spot-comment-photo {
         max-width: 100%;
         max-height: 160px;
         border-radius: 8px;
         display: block;
-        margin-bottom: 8px;
     }
     .spot-comment-votes {
         display: flex;
@@ -725,11 +730,38 @@
         color: var(--text);
         margin-bottom: 4px;
     }
-    .review-modal-image-name {
+    .review-modal-previews {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 8px 0 12px;
+    }
+    .review-modal-preview {
+        position: relative;
+        width: 64px;
+        height: 64px;
+    }
+    .review-modal-preview img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 8px;
         display: block;
-        color: var(--muted);
-        font-size: 0.85em;
-        margin-bottom: 12px;
+    }
+    .review-modal-preview-remove {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        font-size: 11px;
+        line-height: 20px;
+        cursor: pointer;
     }
     #review-modal-save {
         width: 100%;
@@ -975,11 +1007,6 @@
         </div>
     </div>
 
-    <div id="spot-panel" style="display: none; position: absolute; top: 0; left: 0; height: 100%; width: 510px; background: var(--panel-bg); color: var(--text); box-shadow: 2px 0 6px rgba(0,0,0,0.2); z-index: 1000; padding: 16px; box-sizing: border-box; overflow-y: auto;">
-        <button id="spot-panel-close" style="float: right; border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text);">✕</button>
-        <div id="spot-panel-body">Загрузка…</div>
-    </div>
-
     <div class="search-panel-tabs">
         <button id="search-panel-toggle" class="search-panel-tab-btn" title="Свернуть/развернуть панель поиска">◄</button>
         <button id="search-filter-toggle" class="search-panel-tab-btn" title="Фильтры по видам грибов">🎚</button>
@@ -1121,9 +1148,9 @@
                     <textarea id="review-modal-text" name="text" rows="3" placeholder="Опишите плюсы и минусы"></textarea>
                     <label class="review-modal-photo-input-label">
                         📷 Добавить фото
-                        <input type="file" id="review-modal-image" name="image" accept="image/*" style="display: none;">
+                        <input type="file" id="review-modal-image" accept="image/*" multiple style="display: none;">
                     </label>
-                    <span id="review-modal-image-name" class="review-modal-image-name"></span>
+                    <div id="review-modal-previews" class="review-modal-previews"></div>
                     <button type="submit" id="review-modal-save">Сохранить</button>
                 </form>
             </div>
@@ -1182,27 +1209,6 @@
     }).addTo(map);
 
     let allSpots = []; // { data, marker }
-
-    // --- Боковая панель с информацией о месте ---
-    const panel = document.getElementById('spot-panel');
-    const panelBody = document.getElementById('spot-panel-body');
-    let currentPanelSpotId = null;
-
-    function openSpotPanel(spotId) {
-        currentPanelSpotId = spotId;
-        panel.style.display = 'block';
-        panelBody.innerHTML = 'Загрузка…';
-        fetch(`/spots/${spotId}/panel/`)
-            .then(response => response.text())
-            .then(html => { panelBody.innerHTML = html; });
-    }
-
-    function closeSpotPanel() {
-        panel.style.display = 'none';
-        currentPanelSpotId = null;
-    }
-
-    document.getElementById('spot-panel-close').addEventListener('click', closeSpotPanel);
 
     // --- Карточка места в окне поиска (открывается по клику на метку) ---
     let spotCardCarouselTimer = null;
@@ -1496,38 +1502,6 @@
         allSpots.splice(idx, 1);
         applyFilters();
     }
-
-    // Перехватываем отправку форм внутри панели (оценка, комментарий, удаление),
-    // чтобы обновлять панель без перезагрузки страницы.
-    panelBody.addEventListener('submit', function (e) {
-        const form = e.target;
-        if (!form.classList.contains('panel-ajax-form')) return;
-        e.preventDefault();
-
-        const isDelete = form.dataset.panelAction === 'delete';
-        if (isDelete && !confirm('Удалить это место без возможности восстановления?')) {
-            return;
-        }
-
-        fetch(form.action, {
-            method: 'POST',
-            headers: { 'X-Panel-Request': '1' },
-            body: new FormData(form),
-        }).then(async response => {
-            if (isDelete) {
-                if (response.ok) {
-                    removeSpotFromMap(currentPanelSpotId);
-                    closeSpotPanel();
-                } else {
-                    alert('Не удалось удалить это место.');
-                }
-                return;
-            }
-            panelBody.innerHTML = await response.text();
-        }).catch(() => {
-            alert('Не удалось выполнить действие. Попробуйте ещё раз.');
-        });
-    });
 
     // --- Поиск / фильтр ---
     function getSelectedTypes() {
@@ -1956,10 +1930,40 @@
     const reviewModalScoreInput = document.getElementById('review-modal-score-input');
     const reviewModalTextInput = document.getElementById('review-modal-text');
     const reviewModalImageInput = document.getElementById('review-modal-image');
-    const reviewModalImageName = document.getElementById('review-modal-image-name');
+    const reviewModalPreviews = document.getElementById('review-modal-previews');
     const reviewModalForm = document.getElementById('review-modal-form');
     const reviewModalSaveBtn = document.getElementById('review-modal-save');
     let reviewModalSpotId = null;
+    const REVIEW_MODAL_MAX_PHOTOS = 10;
+    let reviewModalFiles = [];
+
+    function renderReviewModalPreviews() {
+        reviewModalPreviews.innerHTML = '';
+        reviewModalFiles.forEach((file, index) => {
+            const item = document.createElement('div');
+            item.className = 'review-modal-preview';
+
+            const img = document.createElement('img');
+            img.alt = '';
+            img.src = URL.createObjectURL(file);
+            img.addEventListener('load', () => URL.revokeObjectURL(img.src));
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'review-modal-preview-remove';
+            removeBtn.title = 'Убрать фото';
+            removeBtn.textContent = '✕';
+            removeBtn.addEventListener('click', () => {
+                reviewModalFiles.splice(index, 1);
+                renderReviewModalPreviews();
+            });
+
+            item.appendChild(img);
+            item.appendChild(removeBtn);
+            reviewModalPreviews.appendChild(item);
+        });
+        reviewModalImageInput.disabled = reviewModalFiles.length >= REVIEW_MODAL_MAX_PHOTOS;
+    }
 
     function paintReviewStars(score) {
         reviewModalStarsWrap.querySelectorAll('.spot-review-star').forEach((btn) => {
@@ -1988,8 +1992,9 @@
             photoWrap.style.display = 'none';
         }
         reviewModalTextInput.value = '';
+        reviewModalFiles = [];
         reviewModalImageInput.value = '';
-        reviewModalImageName.textContent = '';
+        renderReviewModalPreviews();
         setReviewModalScore(0);
         reviewModalOverlay.style.display = 'flex';
     }
@@ -1999,18 +2004,25 @@
         reviewModalSpotId = null;
     }
 
+    // Фото накапливаются в массиве: повторный выбор файлов добавляет
+    // к уже выбранным, а не заменяет их.
     reviewModalImageInput.addEventListener('change', () => {
-        reviewModalImageName.textContent = reviewModalImageInput.files[0] ? reviewModalImageInput.files[0].name : '';
+        const room = REVIEW_MODAL_MAX_PHOTOS - reviewModalFiles.length;
+        reviewModalFiles = reviewModalFiles.concat(Array.from(reviewModalImageInput.files).slice(0, room));
+        reviewModalImageInput.value = '';
+        renderReviewModalPreviews();
     });
 
     reviewModalForm.addEventListener('submit', (e) => {
         e.preventDefault();
         if (!reviewModalSpotId || parseInt(reviewModalScoreInput.value, 10) < 1) return;
         reviewModalSaveBtn.disabled = true;
+        const formData = new FormData(reviewModalForm);
+        reviewModalFiles.forEach((file) => formData.append('images', file));
         fetch(`/spots/${reviewModalSpotId}/review/`, {
             method: 'POST',
             headers: { 'X-Panel-Request': '1' },
-            body: new FormData(reviewModalForm),
+            body: formData,
         }).then((res) => res.text()).then((html) => {
             reviewModalSaveBtn.disabled = false;
             closeReviewModal();

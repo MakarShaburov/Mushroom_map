@@ -6,12 +6,22 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import (
-    CommentVote, MushroomSpot, MushroomType, PhotoLike, SpotComment, SpotPhoto, SpotRating,
+    CommentPhoto, CommentVote, MushroomSpot, MushroomType, PhotoLike, SpotComment, SpotPhoto,
+    SpotRating,
 )
 from .utils import ru_plural
 
 PANEL_HEADER = 'X-Panel-Request'
-PHOTO_LIKE_MODELS = {'spot': SpotPhoto, 'comment': SpotComment}
+PHOTO_LIKE_MODELS = {'spot': SpotPhoto, 'comment_photo': CommentPhoto}
+MAX_COMMENT_PHOTOS = 10
+
+
+def _save_comment_photos(comment, files):
+    """Прикрепляет к комментарию загруженные фото (не больше
+    MAX_COMMENT_PHOTOS штук; файлы, не являющиеся картинками, пропускаются)."""
+    images = [f for f in files if (f.content_type or '').startswith('image/')]
+    for image in images[:MAX_COMMENT_PHOTOS]:
+        CommentPhoto.objects.create(comment=comment, image=image)
 
 
 def map_view(request):
@@ -44,7 +54,7 @@ def _panel_context(request, spot):
     if request.user.is_authenticated and request.user != spot.author:
         user_rating_given = spot.author.received_user_ratings.filter(rater=request.user).first()
 
-    comments = list(spot.comments.select_related('author').prefetch_related('votes').all())
+    comments = list(spot.comments.select_related('author').prefetch_related('votes', 'photos').all())
     if request.user.is_authenticated:
         my_votes = {
             v.comment_id: v.is_like
@@ -85,7 +95,7 @@ def _spot_card_context(request, spot):
         my_rating = spot.ratings.filter(user=request.user).first()
         my_score = my_rating.score if my_rating else 0
 
-    comments = list(spot.comments.select_related('author').all())
+    comments = list(spot.comments.select_related('author').prefetch_related('photos').all())
     scores_by_user = {r.user_id: r.score for r in spot.ratings.all()}
     my_votes = {}
     if request.user.is_authenticated:
@@ -97,7 +107,7 @@ def _spot_card_context(request, spot):
         comment.author_score = scores_by_user.get(comment.author_id)
         comment.user_vote = my_votes.get(comment.id)
 
-    comment_photos = [c for c in comments if c.image]
+    comment_photos = [photo for c in comments for photo in c.photos.all()]
     spot_photos = list(spot.photos.all())
     photos_count = len(spot_photos) + len(comment_photos)
     reviews_word = ru_plural(len(comments), ('отзыв', 'отзыва', 'отзывов'))
@@ -105,9 +115,9 @@ def _spot_card_context(request, spot):
     # Сердечки на фото (своё фото места и фото из комментариев) — отдельно
     # от лайка/дизлайка самого комментария.
     spot_ct = ContentType.objects.get_for_model(SpotPhoto)
-    comment_ct = ContentType.objects.get_for_model(SpotComment)
+    comment_ct = ContentType.objects.get_for_model(CommentPhoto)
     spot_photo_ids = [p.pk for p in spot_photos]
-    comment_photo_ids = [c.pk for c in comment_photos]
+    comment_photo_ids = [p.pk for p in comment_photos]
 
     spot_heart_counts = dict(
         PhotoLike.objects.filter(content_type=spot_ct, object_id__in=spot_photo_ids)
@@ -131,9 +141,9 @@ def _spot_card_context(request, spot):
     for p in spot_photos:
         p.heart_count = spot_heart_counts.get(p.pk, 0)
         p.liked_by_me = p.pk in my_spot_hearts
-    for c in comment_photos:
-        c.heart_count = comment_heart_counts.get(c.pk, 0)
-        c.liked_by_me = c.pk in my_comment_hearts
+    for p in comment_photos:
+        p.heart_count = comment_heart_counts.get(p.pk, 0)
+        p.liked_by_me = p.pk in my_comment_hearts
 
     return {
         'spot': spot,
@@ -169,9 +179,9 @@ def spot_review_create(request, pk):
             spot=spot, user=request.user, defaults={'score': int(score)},
         )
     text = request.POST.get('text', '').strip()
-    image = request.FILES.get('image')
     if text:
-        SpotComment.objects.create(spot=spot, author=request.user, text=text, image=image)
+        comment = SpotComment.objects.create(spot=spot, author=request.user, text=text)
+        _save_comment_photos(comment, request.FILES.getlist('images'))
     return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
 
 
@@ -179,7 +189,7 @@ def spot_review_create(request, pk):
 @require_POST
 def photo_like_toggle(request):
     """Сердечко на фото в полноэкранном просмотре. kind — 'spot' (своё
-    фото места) или 'comment' (фото в комментарии), id — pk объекта."""
+    фото места) или 'comment_photo' (фото в комментарии), id — pk фото."""
     model = PHOTO_LIKE_MODELS.get(request.POST.get('kind'))
     if not model:
         return JsonResponse({'error': 'invalid kind'}, status=400)
@@ -258,9 +268,9 @@ def spot_rate(request, pk):
 def spot_comment_create(request, pk):
     spot = get_object_or_404(MushroomSpot, pk=pk)
     text = request.POST.get('text', '').strip()
-    image = request.FILES.get('image')
     if text:
-        SpotComment.objects.create(spot=spot, author=request.user, text=text, image=image)
+        comment = SpotComment.objects.create(spot=spot, author=request.user, text=text)
+        _save_comment_photos(comment, request.FILES.getlist('images'))
     if request.headers.get(PANEL_HEADER):
         return render_spot_panel_response(request, spot)
     return redirect('spots:spot_detail', pk=pk)
