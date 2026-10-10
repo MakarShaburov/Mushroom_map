@@ -777,6 +777,141 @@
         opacity: 0.6;
         cursor: default;
     }
+    .user-link {
+        cursor: pointer;
+    }
+    .spot-comment-author.user-link:hover {
+        text-decoration: underline;
+    }
+    .user-avatar-large {
+        width: 72px;
+        height: 72px;
+        font-size: 30px;
+    }
+    .user-card-hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 10px;
+        margin: 4px 0 14px;
+    }
+    .user-card-name-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-width: 0;
+    }
+    .user-card-name {
+        margin: 0;
+        font-size: 1.3em;
+        overflow-wrap: anywhere;
+    }
+    .user-card-rating {
+        color: var(--muted);
+        white-space: nowrap;
+    }
+    .user-card-rating-star {
+        color: #f5a623;
+    }
+    .user-card-stat {
+        text-align: center;
+        margin-bottom: 16px;
+    }
+    .user-card-stat strong {
+        display: block;
+        font-size: 1.3em;
+    }
+    .user-card-stat span {
+        color: var(--muted);
+        font-size: 0.85em;
+    }
+    .user-card-actions {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .user-card-rate-btn {
+        flex: 1;
+        border: none;
+        border-radius: 24px;
+        background: var(--link);
+        color: #fff;
+        padding: 11px 16px;
+        font-size: 15px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .user-card-menu-wrap {
+        position: relative;
+        flex-shrink: 0;
+        display: flex;
+    }
+    .user-card-menu-btn {
+        width: 48px;
+        border: none;
+        border-radius: 24px;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 18px;
+        cursor: pointer;
+    }
+    .user-card-menu {
+        top: calc(100% + 6px);
+    }
+    .profile-menu-item-muted {
+        color: var(--muted);
+        cursor: default;
+    }
+    .profile-menu-item-muted:hover {
+        background: none;
+    }
+    .user-confirm-modal {
+        width: 400px;
+        text-align: center;
+    }
+    .user-confirm-modal .user-avatar-badge {
+        margin: 0 auto 14px;
+    }
+    .user-confirm-title {
+        margin: 0 0 8px;
+        font-size: 1.1em;
+    }
+    .user-confirm-text {
+        margin: 0 0 20px;
+        color: var(--muted);
+    }
+    .user-confirm-modal .review-modal-stars {
+        justify-content: center;
+        margin-bottom: 20px;
+    }
+    .user-confirm-buttons {
+        display: flex;
+        gap: 10px;
+    }
+    .user-confirm-btn {
+        flex: 1;
+        border: none;
+        border-radius: 10px;
+        padding: 11px;
+        font-size: 15px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .user-confirm-btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+    }
+    .user-confirm-btn-secondary {
+        background: var(--bg);
+        color: var(--link);
+    }
+    .user-confirm-btn-primary {
+        background: var(--link);
+        color: #fff;
+    }
     .photo-lightbox-overlay {
         position: fixed;
         inset: 0;
@@ -1076,6 +1211,14 @@
                 <div id="spot-card-content"></div>
             </div>
 
+            <div id="search-user-view" style="display: none;">
+                <div class="spot-card-header-row">
+                    <p class="search-panel-label" style="margin: 0;">Профиль</p>
+                    <button type="button" id="user-card-close" class="filters-close-btn" title="Закрыть">✕</button>
+                </div>
+                <div id="user-card-content"></div>
+            </div>
+
             {% if user.is_authenticated %}
                 <div id="search-profile-view" style="display: none;">
                     <div class="profile-view-header">
@@ -1162,6 +1305,37 @@
         <button type="button" class="map-context-menu-item" data-action="add-spot">📍 Добавить объект</button>
         <button type="button" class="map-context-menu-item" data-action="route-to">⬇️ Маршрут сюда</button>
         <button type="button" class="map-context-menu-item" data-action="route-from">⬆️ Маршрут отсюда</button>
+    </div>
+
+    <div id="user-confirm-overlay" class="auth-modal-overlay" style="display: none;">
+        <div class="auth-modal user-confirm-modal" role="dialog" aria-modal="true">
+            <button type="button" id="user-confirm-close" class="auth-modal-close" title="Закрыть">✕</button>
+            <span class="user-avatar-badge user-avatar-large" id="user-confirm-avatar"></span>
+            <h2 class="user-confirm-title" id="user-confirm-title"></h2>
+            <p class="user-confirm-text" id="user-confirm-text"></p>
+            <div class="user-confirm-buttons">
+                <button type="button" id="user-confirm-cancel" class="user-confirm-btn user-confirm-btn-secondary">Отмена</button>
+                <button type="button" id="user-confirm-ok" class="user-confirm-btn user-confirm-btn-primary"></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="user-rate-overlay" class="auth-modal-overlay" style="display: none;">
+        <div class="auth-modal user-confirm-modal" role="dialog" aria-modal="true">
+            <button type="button" id="user-rate-close" class="auth-modal-close" title="Закрыть">✕</button>
+            <span class="user-avatar-badge user-avatar-large" id="user-rate-avatar"></span>
+            <h2 class="user-confirm-title">Оценить пользователя</h2>
+            <p class="user-confirm-text" id="user-rate-name"></p>
+            <div class="review-modal-stars" id="user-rate-stars">
+                {% for i in "12345" %}
+                    <button type="button" class="spot-review-star" data-score="{{ forloop.counter }}" title="Оценить на {{ forloop.counter }}">★</button>
+                {% endfor %}
+            </div>
+            <div class="user-confirm-buttons">
+                <button type="button" id="user-rate-cancel" class="user-confirm-btn user-confirm-btn-secondary">Отмена</button>
+                <button type="button" id="user-rate-submit" class="user-confirm-btn user-confirm-btn-primary" disabled>Оценить</button>
+            </div>
+        </div>
     </div>
 
     <div id="photo-lightbox-overlay" class="photo-lightbox-overlay" style="display: none;">
@@ -1495,6 +1669,218 @@
 
     document.getElementById('spot-card-close').addEventListener('click', () => showView('results'));
 
+    // --- Окно профиля другого пользователя (клик по нику или иконке в комментариях) ---
+    const CURRENT_USERNAME = {% if user.is_authenticated %}"{{ user.username|escapejs }}"{% else %}null{% endif %};
+    const userCardContent = document.getElementById('user-card-content');
+    let userCardReturnView = 'results';
+
+    function openUserCard(username, url) {
+        setSearchPanelCollapsed(false);
+        // Свой ник в комментариях ведёт в собственный профиль.
+        if (CURRENT_USERNAME && username === CURRENT_USERNAME) {
+            showView('profile');
+            return;
+        }
+        if (currentView !== 'user') userCardReturnView = currentView;
+        showView('user');
+        userCardContent.innerHTML = '<p>Загрузка…</p>';
+        fetch(url)
+            .then(response => response.text())
+            .then(html => { userCardContent.innerHTML = html; });
+    }
+
+    // Закрытие возвращает туда, откуда пришли (обычно — в карточку места).
+    function closeUserCard() {
+        const target = userCardReturnView || 'results';
+        showView(target);
+        if (target === 'spot') {
+            const activeTab = document.querySelector('#spot-card-content .spot-tab-btn.active');
+            if (activeTab) {
+                setSearchPanelWide(activeTab.dataset.spotTab === 'photos' || activeTab.dataset.spotTab === 'comments');
+            }
+        }
+    }
+
+    document.getElementById('user-card-close').addEventListener('click', closeUserCard);
+    document.getElementById('spot-card-content').addEventListener('click', (e) => {
+        const link = e.target.closest('[data-user-open]');
+        if (link) openUserCard(link.dataset.userOpen, link.dataset.userCardUrl);
+    });
+
+    function postUserAction(url, data) {
+        const formData = new FormData();
+        Object.entries(data || {}).forEach(([key, value]) => formData.append(key, value));
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken(), 'X-Panel-Request': '1' },
+            body: formData,
+        }).then(response => {
+            if (!response.ok) throw new Error('request failed');
+            return response.text();
+        }).then(html => { userCardContent.innerHTML = html; });
+    }
+
+    function alertUserActionFailed() {
+        alert('Не удалось выполнить действие. Попробуйте ещё раз.');
+    }
+
+    // Подтверждение блокировки / жалобы — окно по центру
+    const userConfirmOverlay = document.getElementById('user-confirm-overlay');
+    const userConfirmOk = document.getElementById('user-confirm-ok');
+    let userConfirmHandler = null;
+
+    function openUserConfirm({ username, title, before, after, confirmLabel, onConfirm }) {
+        document.getElementById('user-confirm-avatar').textContent = username[0].toUpperCase();
+        document.getElementById('user-confirm-title').textContent = title;
+        const text = document.getElementById('user-confirm-text');
+        const name = document.createElement('strong');
+        name.textContent = username;
+        text.textContent = '';
+        text.append(before, name, after);
+        userConfirmOk.textContent = confirmLabel;
+        userConfirmOk.disabled = false;
+        userConfirmHandler = onConfirm;
+        userConfirmOverlay.style.display = 'flex';
+    }
+
+    function closeUserConfirm() {
+        userConfirmOverlay.style.display = 'none';
+        userConfirmHandler = null;
+    }
+
+    userConfirmOk.addEventListener('click', () => {
+        if (!userConfirmHandler) return;
+        userConfirmOk.disabled = true;
+        userConfirmHandler()
+            .then(closeUserConfirm)
+            .catch(() => {
+                userConfirmOk.disabled = false;
+                alertUserActionFailed();
+            });
+    });
+    document.getElementById('user-confirm-cancel').addEventListener('click', closeUserConfirm);
+    document.getElementById('user-confirm-close').addEventListener('click', closeUserConfirm);
+    userConfirmOverlay.addEventListener('click', (e) => {
+        if (e.target === userConfirmOverlay) closeUserConfirm();
+    });
+
+    // Оценка пользователя — окно по центру со звёздами
+    const userRateOverlay = document.getElementById('user-rate-overlay');
+    const userRateStars = document.getElementById('user-rate-stars');
+    const userRateSubmit = document.getElementById('user-rate-submit');
+    let userRateScore = 0;
+    let userRateUrl = null;
+
+    function paintUserRateStars(score) {
+        userRateStars.querySelectorAll('.spot-review-star').forEach((btn) => {
+            btn.classList.toggle('filled', parseInt(btn.dataset.score, 10) <= score);
+        });
+    }
+
+    function openUserRate(card) {
+        userRateUrl = card.dataset.rateUrl;
+        userRateScore = parseInt(card.dataset.myScore, 10) || 0;
+        document.getElementById('user-rate-avatar').textContent = card.dataset.username[0].toUpperCase();
+        document.getElementById('user-rate-name').textContent = card.dataset.username;
+        paintUserRateStars(userRateScore);
+        userRateSubmit.disabled = userRateScore < 1;
+        userRateOverlay.style.display = 'flex';
+    }
+
+    function closeUserRate() {
+        userRateOverlay.style.display = 'none';
+    }
+
+    userRateStars.querySelectorAll('.spot-review-star').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            userRateScore = parseInt(btn.dataset.score, 10);
+            paintUserRateStars(userRateScore);
+            userRateSubmit.disabled = false;
+        });
+    });
+    userRateSubmit.addEventListener('click', () => {
+        if (userRateScore < 1) return;
+        userRateSubmit.disabled = true;
+        postUserAction(userRateUrl, { score: userRateScore })
+            .then(closeUserRate)
+            .catch(() => {
+                userRateSubmit.disabled = false;
+                alertUserActionFailed();
+            });
+    });
+    document.getElementById('user-rate-cancel').addEventListener('click', closeUserRate);
+    document.getElementById('user-rate-close').addEventListener('click', closeUserRate);
+    userRateOverlay.addEventListener('click', (e) => {
+        if (e.target === userRateOverlay) closeUserRate();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        closeUserConfirm();
+        closeUserRate();
+    });
+
+    // Клики внутри окна профиля (делегирование: содержимое перерисовывается после действий)
+    userCardContent.addEventListener('click', (e) => {
+        const card = userCardContent.querySelector('.user-card');
+        if (!card) return;
+
+        const tabBtn = e.target.closest('[data-user-tab]');
+        if (tabBtn) {
+            card.querySelectorAll('[data-user-tab]').forEach((b) => b.classList.toggle('active', b === tabBtn));
+            card.querySelectorAll('[data-user-tab-panel]').forEach((panel) => {
+                panel.style.display = panel.dataset.userTabPanel === tabBtn.dataset.userTab ? 'block' : 'none';
+            });
+            return;
+        }
+
+        const menu = card.querySelector('.user-card-menu');
+        if (e.target.closest('.user-card-menu-btn')) {
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+            return;
+        }
+
+        if (e.target.closest('.user-card-rate-btn')) {
+            openUserRate(card);
+            return;
+        }
+
+        const actionBtn = e.target.closest('[data-user-action]');
+        if (!actionBtn) return;
+        menu.style.display = 'none';
+        const username = card.dataset.username;
+        const blockUrl = card.dataset.blockUrl;
+        const reportUrl = card.dataset.reportUrl;
+        const action = actionBtn.dataset.userAction;
+
+        if (action === 'block') {
+            openUserConfirm({
+                username,
+                title: 'Заблокировать пользователя?',
+                before: '',
+                after: ' больше не сможет видеть ваш профиль в приложении',
+                confirmLabel: 'Заблокировать',
+                onConfirm: () => postUserAction(blockUrl, { action: 'block' }),
+            });
+        } else if (action === 'unblock') {
+            postUserAction(blockUrl, { action: 'unblock' }).catch(alertUserActionFailed);
+        } else if (action === 'report') {
+            openUserConfirm({
+                username,
+                title: 'Пожаловаться на пользователя?',
+                before: 'Мы передадим жалобу на ',
+                after: ' администрации',
+                confirmLabel: 'Пожаловаться',
+                onConfirm: () => postUserAction(reportUrl),
+            });
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.user-card-menu-wrap')) return;
+        document.querySelectorAll('.user-card-menu').forEach((m) => { m.style.display = 'none'; });
+    });
+
     function removeSpotFromMap(spotId) {
         const idx = allSpots.findIndex(entry => entry.data.id === spotId);
         if (idx === -1) return;
@@ -1597,6 +1983,7 @@
         filters: document.getElementById('search-filters-view'),
         route: document.getElementById('search-route-view'),
         spot: document.getElementById('search-spot-view'),
+        user: document.getElementById('search-user-view'),
     };
     const searchProfileView = document.getElementById('search-profile-view');
     if (searchProfileView) {

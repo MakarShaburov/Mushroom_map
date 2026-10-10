@@ -13,4 +13,7 @@ urlpatterns = [
     path('profile/settings/', views.profile_settings, name='profile_settings'),
     path('profile/<str:username>/', views.public_profile, name='public_profile'),
     path('rate/<str:username>/', views.rate_user, name='rate_user'),
+    path('users/<str:username>/card/', views.user_card, name='user_card'),
+    path('users/<str:username>/block/', views.block_user, name='block_user'),
+    path('users/<str:username>/report/', views.report_user, name='report_user'),
 ]

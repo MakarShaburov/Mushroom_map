@@ -2,6 +2,7 @@ from django.contrib.auth import REDIRECT_FIELD_NAME, login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
+from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -11,7 +12,7 @@ from spots.models import MushroomSpot
 from spots.views import PANEL_HEADER, render_spot_panel_response
 
 from .forms import ProfileBioForm, SignUpForm
-from .models import UserRating
+from .models import UserBlock, UserRating, UserReport
 
 
 def _safe_next_url(request):
@@ -84,8 +85,83 @@ def profile_settings(request):
     return render(request, 'accounts/profile_settings.html', {'form': form})
 
 
+def _is_blocked_by(viewer, person):
+    """True, если person заблокировал viewer (viewer не должен видеть его профиль)."""
+    return (
+        viewer.is_authenticated
+        and viewer != person
+        and UserBlock.objects.filter(blocker=person, blocked=viewer).exists()
+    )
+
+
+def _user_card_context(request, person):
+    viewer = request.user
+    is_self = viewer.is_authenticated and viewer == person
+    context = {
+        'person': person,
+        'is_self': is_self,
+        'restricted': _is_blocked_by(viewer, person),
+    }
+    if context['restricted']:
+        return context
+    context.update({
+        'rating': person.profile.rating,
+        'spots_count': person.spots.count(),
+        'reviews_count': person.spot_comments.count(),
+    })
+    if viewer.is_authenticated and not is_self:
+        my_rating = UserRating.objects.filter(rater=viewer, rated_user=person).first()
+        context.update({
+            'my_score': my_rating.score if my_rating else 0,
+            'i_blocked': UserBlock.objects.filter(blocker=viewer, blocked=person).exists(),
+            'i_reported': UserReport.objects.filter(reporter=viewer, reported=person).exists(),
+        })
+    return context
+
+
+def render_user_card(request, person):
+    return render(request, 'accounts/_user_card.html', _user_card_context(request, person))
+
+
+def user_card(request, username):
+    """Окно профиля пользователя в панели поиска (партиал для AJAX)."""
+    person = get_object_or_404(User, username=username)
+    return render_user_card(request, person)
+
+
+@login_required
+@require_POST
+def block_user(request, username):
+    """Блокировка пользователя (action=block, по умолчанию) или снятие
+    блокировки (action=unblock). Заблокированный не видит профиль
+    заблокировавшего."""
+    target = get_object_or_404(User, username=username)
+    if target != request.user:
+        if request.POST.get('action') == 'unblock':
+            UserBlock.objects.filter(blocker=request.user, blocked=target).delete()
+        else:
+            UserBlock.objects.get_or_create(blocker=request.user, blocked=target)
+    if request.headers.get(PANEL_HEADER):
+        return render_user_card(request, target)
+    return redirect('accounts:public_profile', username=target.username)
+
+
+@login_required
+@require_POST
+def report_user(request, username):
+    """Жалоба на пользователя. Повторная жалоба на того же человека ничего не меняет."""
+    target = get_object_or_404(User, username=username)
+    if target != request.user:
+        UserReport.objects.get_or_create(reporter=request.user, reported=target)
+    if request.headers.get(PANEL_HEADER):
+        return render_user_card(request, target)
+    return redirect('accounts:public_profile', username=target.username)
+
+
 def public_profile(request, username):
     person = get_object_or_404(User, username=username)
+    if _is_blocked_by(request.user, person):
+        raise PermissionDenied
     return render(request, 'accounts/public_profile.html', {
         'person': person,
         'ratings_received': person.received_user_ratings.count(),
@@ -102,7 +178,8 @@ def rate_user(request, username):
     score = request.POST.get('score')
     spot = MushroomSpot.objects.filter(pk=spot_id).first() if spot_id else None
 
-    if rated_user != request.user and score and score.isdigit() and 1 <= int(score) <= 5:
+    can_rate = rated_user != request.user and not _is_blocked_by(request.user, rated_user)
+    if can_rate and score and score.isdigit() and 1 <= int(score) <= 5:
         UserRating.objects.update_or_create(
             rater=request.user,
             rated_user=rated_user,
@@ -112,6 +189,8 @@ def rate_user(request, username):
 
     if request.headers.get(PANEL_HEADER) and spot:
         return render_spot_panel_response(request, spot)
+    if request.headers.get(PANEL_HEADER):
+        return render_user_card(request, rated_user)
     if spot_id:
         return redirect('spots:spot_detail', pk=spot_id)
     return redirect('accounts:profile')

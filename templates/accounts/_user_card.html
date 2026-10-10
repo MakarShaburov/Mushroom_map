@@ -1,0 +1,68 @@
+<div class="user-card" data-username="{{ person.username }}"
+    {% if user.is_authenticated and not is_self and not restricted %}
+    data-rate-url="{% url 'accounts:rate_user' person.username %}"
+    data-block-url="{% url 'accounts:block_user' person.username %}"
+    data-report-url="{% url 'accounts:report_user' person.username %}"
+    data-my-score="{{ my_score }}"
+    {% endif %}
+>
+    {% if restricted %}
+        <div class="user-card-hero">
+            <span class="user-avatar-badge user-avatar-large">{{ person.username|first|upper }}</span>
+            <div class="user-card-name-row">
+                <h2 class="user-card-name">{{ person.username }}</h2>
+            </div>
+        </div>
+        <p class="spot-card-empty" style="text-align: center;">Профиль недоступен.</p>
+    {% else %}
+        <div class="user-card-hero">
+            <span class="user-avatar-badge user-avatar-large">{{ person.username|first|upper }}</span>
+            <div class="user-card-name-row">
+                <h2 class="user-card-name">{{ person.username }}</h2>
+                <span class="user-card-rating"><span class="user-card-rating-star">★</span> {{ rating|default:"—" }}</span>
+            </div>
+        </div>
+
+        <div class="user-card-stat">
+            <strong>{{ spots_count }}</strong>
+            <span>грибных мест</span>
+        </div>
+
+        {% if user.is_authenticated and not is_self %}
+            <div class="user-card-actions">
+                <button type="button" class="user-card-rate-btn">{% if my_score %}★ Ваша оценка: {{ my_score }}{% else %}Оценить{% endif %}</button>
+                <div class="user-card-menu-wrap">
+                    <button type="button" class="user-card-menu-btn" title="Ещё">⋯</button>
+                    <div class="profile-menu user-card-menu" style="display: none;">
+                        {% if i_blocked %}
+                            <button type="button" class="profile-menu-item" data-user-action="unblock">Разблокировать</button>
+                        {% else %}
+                            <button type="button" class="profile-menu-item profile-menu-item-danger" data-user-action="block">🚫 Заблокировать</button>
+                        {% endif %}
+                        {% if i_reported %}
+                            <span class="profile-menu-item profile-menu-item-muted">Жалоба отправлена</span>
+                        {% else %}
+                            <button type="button" class="profile-menu-item profile-menu-item-danger" data-user-action="report">⚑ Пожаловаться</button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% elif is_self %}
+            <p class="spot-card-login-hint" style="text-align: center;">Это вы.</p>
+        {% else %}
+            <p class="spot-card-login-hint" style="text-align: center;"><a href="{% url 'accounts:login' %}" data-auth-open="login">Войдите</a>, чтобы оценить пользователя.</p>
+        {% endif %}
+
+        <div class="spot-card-tabs">
+            <button type="button" class="spot-tab-btn active" data-user-tab="reviews">Отзывы <span class="spot-tab-badge">{{ reviews_count }}</span></button>
+            <button type="button" class="spot-tab-btn" data-user-tab="spots">Грибные места <span class="spot-tab-badge">{{ spots_count }}</span></button>
+        </div>
+
+        <div class="user-tab-panel" data-user-tab-panel="reviews">
+            <p class="spot-card-empty">Здесь будут отзывы пользователя.</p>
+        </div>
+        <div class="user-tab-panel" data-user-tab-panel="spots" style="display: none;">
+            <p class="spot-card-empty">Здесь будут грибные места пользователя.</p>
+        </div>
+    {% endif %}
+</div>

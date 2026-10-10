@@ -75,6 +75,71 @@ class UserRating(models.Model):
         return f'{self.rater} -> {self.rated_user}: {self.score}'
 
 
+class UserBlock(models.Model):
+    """Блокировка: blocked больше не может видеть профиль blocker."""
+
+    blocker = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='blocks_made',
+        verbose_name='Кто заблокировал',
+    )
+    blocked = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='blocks_received',
+        verbose_name='Кого заблокировали',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Блокировка пользователя'
+        verbose_name_plural = 'Блокировки пользователей'
+        constraints = [
+            models.UniqueConstraint(fields=['blocker', 'blocked'], name='unique_user_block'),
+            models.CheckConstraint(
+                condition=~models.Q(blocker=models.F('blocked')),
+                name='cannot_block_self',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.blocker} заблокировал {self.blocked}'
+
+
+class UserReport(models.Model):
+    """Жалоба одного пользователя на другого. Одна пара — одна жалоба,
+    повторная отправка ничего не меняет."""
+
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='reports_made',
+        verbose_name='Кто пожаловался',
+    )
+    reported = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='reports_received',
+        verbose_name='На кого пожаловались',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Жалоба на пользователя'
+        verbose_name_plural = 'Жалобы на пользователей'
+        constraints = [
+            models.UniqueConstraint(fields=['reporter', 'reported'], name='unique_user_report'),
+            models.CheckConstraint(
+                condition=~models.Q(reporter=models.F('reported')),
+                name='cannot_report_self',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.reporter} -> {self.reported}'
+
+
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_or_update_profile(sender, instance, created, **kwargs):
     if created:

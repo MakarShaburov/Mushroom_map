@@ -75,9 +75,9 @@
             {% for comment in comments %}
                 <div class="spot-comment-row">
                     <div class="spot-comment-header">
-                        <span class="user-avatar-badge">{{ comment.author.username|first|upper }}</span>
+                        <span class="user-avatar-badge user-link" data-user-open="{{ comment.author.username }}" data-user-card-url="{% url 'accounts:user_card' comment.author.username %}">{{ comment.author.username|first|upper }}</span>
                         <div class="spot-comment-header-info">
-                            <div class="spot-comment-author">{{ comment.author.username }}</div>
+                            <div class="spot-comment-author user-link" data-user-open="{{ comment.author.username }}" data-user-card-url="{% url 'accounts:user_card' comment.author.username %}">{{ comment.author.username }}</div>
                             <div class="spot-comment-meta-row">
                                 {% if comment.author_score %}
                                     <span class="spot-comment-author-stars">{% for i in "12345" %}{% if forloop.counter <= comment.author_score %}★{% else %}☆{% endif %}{% endfor %}</span>
@@ -149,9 +149,9 @@
             <p class="spot-my-review-label">Вы оценили это место</p>
             <div class="spot-my-review">
                 <div class="spot-comment-header">
-                    <span class="user-avatar-badge">{{ user.username|first|upper }}</span>
+                    <span class="user-avatar-badge user-link" data-user-open="{{ user.username }}" data-user-card-url="{% url 'accounts:user_card' user.username %}">{{ user.username|first|upper }}</span>
                     <div class="spot-comment-header-info">
-                        <div class="spot-comment-author">{{ user.username }}</div>
+                        <div class="spot-comment-author user-link" data-user-open="{{ user.username }}" data-user-card-url="{% url 'accounts:user_card' user.username %}">{{ user.username }}</div>
                         <div class="spot-comment-meta-row">
                             <span class="spot-comment-author-stars">{% for i in "12345" %}{% if forloop.counter <= my_score %}★{% else %}☆{% endif %}{% endfor %}</span>
                             {% if my_rating %}<span class="spot-comment-date">{{ my_rating.created_at|date:"d.m.Y" }}</span>{% endif %}
@@ -184,9 +184,9 @@
             {% for comment in comments %}
                 <div class="spot-comment-row" data-created="{{ comment.created_at|date:'U' }}" data-score="{{ comment.author_score|default:0 }}">
                     <div class="spot-comment-header">
-                        <span class="user-avatar-badge">{{ comment.author.username|first|upper }}</span>
+                        <span class="user-avatar-badge user-link" data-user-open="{{ comment.author.username }}" data-user-card-url="{% url 'accounts:user_card' comment.author.username %}">{{ comment.author.username|first|upper }}</span>
                         <div class="spot-comment-header-info">
-                            <div class="spot-comment-author">{{ comment.author.username }}</div>
+                            <div class="spot-comment-author user-link" data-user-open="{{ comment.author.username }}" data-user-card-url="{% url 'accounts:user_card' comment.author.username %}">{{ comment.author.username }}</div>
                             <div class="spot-comment-meta-row">
                                 {% if comment.author_score %}
                                     <span class="spot-comment-author-stars">{% for i in "12345" %}{% if forloop.counter <= comment.author_score %}★{% else %}☆{% endif %}{% endfor %}</span>
