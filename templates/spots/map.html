@@ -127,6 +127,57 @@
         display: block;
         margin-bottom: 8px;
     }
+    .type-group {
+        border-bottom: 1px solid var(--border);
+        padding: 6px 0;
+    }
+    .type-group:last-child {
+        border-bottom: none;
+    }
+    .type-group-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .type-group-checkbox {
+        margin: 0;
+        flex-shrink: 0;
+    }
+    .type-group-toggle {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 0;
+        border: none;
+        background: none;
+        color: var(--text);
+        font: inherit;
+        font-weight: bold;
+        text-align: left;
+        cursor: pointer;
+    }
+    .type-group-name {
+        flex: 1;
+    }
+    .type-group-count {
+        color: var(--muted);
+        font-size: 0.85em;
+        font-weight: normal;
+    }
+    .type-group-chevron {
+        color: var(--muted);
+        transition: transform 0.15s;
+    }
+    .type-group-toggle[aria-expanded="true"] .type-group-chevron {
+        transform: rotate(90deg);
+    }
+    .type-group-body {
+        padding: 6px 0 2px 24px;
+    }
+    .type-group-body .filter-checkbox-row:last-child {
+        margin-bottom: 4px;
+    }
     .route-field-row {
         display: flex;
         align-items: center;
@@ -1267,10 +1318,24 @@
                     <button type="button" id="filters-close" class="filters-close-btn" title="Закрыть фильтры">✕</button>
                 </div>
                 <div id="search-types">
-                    {% for type in mushroom_types %}
-                        <label class="filter-checkbox-row">
-                            <input type="checkbox" class="type-checkbox" value="{{ type.code }}"> {{ type.name }}
-                        </label>
+                    {% for group in mushroom_groups %}
+                        <div class="type-group" data-group="{{ group.code }}">
+                            <div class="type-group-header">
+                                <input type="checkbox" class="type-group-checkbox" title="Выбрать всю категорию" aria-label="Выбрать всю категорию: {{ group.name }}">
+                                <button type="button" class="type-group-toggle" aria-expanded="false">
+                                    <span class="type-group-name">{{ group.name }}</span>
+                                    <span class="type-group-count"></span>
+                                    <span class="type-group-chevron">▸</span>
+                                </button>
+                            </div>
+                            <div class="type-group-body" hidden>
+                                {% for type in group.types %}
+                                    <label class="filter-checkbox-row">
+                                        <input type="checkbox" class="type-checkbox" value="{{ type.code }}"> {{ type.name }}
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        </div>
                     {% endfor %}
                 </div>
             </div>
@@ -2147,6 +2212,7 @@
     filtersReset.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.type-checkbox:checked').forEach(cb => { cb.checked = false; });
+        updateAllTypeGroups();
         applyFilters();
     });
     searchRouteToggle.addEventListener('click', () => {
@@ -2350,6 +2416,44 @@
     });
 
     document.getElementById('search-types').addEventListener('change', applyFilters);
+
+    // --- Категории видов в фильтре: раскрытие, «выбрать всю категорию», счётчик ---
+    // Состояние категории выводится из отмеченных видов: все — галочка,
+    // часть — промежуточное состояние, ни одного — пусто.
+    function updateTypeGroup(group) {
+        const total = group.querySelectorAll('.type-checkbox').length;
+        const checked = group.querySelectorAll('.type-checkbox:checked').length;
+        const master = group.querySelector('.type-group-checkbox');
+        master.checked = total > 0 && checked === total;
+        master.indeterminate = checked > 0 && checked < total;
+        group.querySelector('.type-group-count').textContent = checked > 0 ? `${checked}/${total}` : `${total}`;
+    }
+
+    function updateAllTypeGroups() {
+        document.querySelectorAll('#search-types .type-group').forEach(updateTypeGroup);
+    }
+
+    document.querySelectorAll('#search-types .type-group').forEach((group) => {
+        const toggle = group.querySelector('.type-group-toggle');
+        const body = group.querySelector('.type-group-body');
+        toggle.addEventListener('click', () => {
+            const open = toggle.getAttribute('aria-expanded') !== 'true';
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            body.hidden = !open;
+        });
+        // Слушатель на самом чекбоксе срабатывает раньше, чем событие дойдёт до
+        // #search-types и вызовет applyFilters, поэтому фильтр увидит новые отметки.
+        group.querySelector('.type-group-checkbox').addEventListener('change', (e) => {
+            group.querySelectorAll('.type-checkbox').forEach((cb) => { cb.checked = e.target.checked; });
+            updateTypeGroup(group);
+        });
+    });
+    document.getElementById('search-types').addEventListener('change', (e) => {
+        if (e.target.classList.contains('type-checkbox')) {
+            updateTypeGroup(e.target.closest('.type-group'));
+        }
+    });
+    updateAllTypeGroups();
 
     {% if user.is_authenticated %}
     // --- Профиль: показать/скрыть вид, меню из трёх точек, список мест ---

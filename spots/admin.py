@@ -1,13 +1,26 @@
 from django.contrib import admin
 
 from .models import (
-    CommentPhoto, CommentVote, MushroomSpot, MushroomType, SpotComment, SpotPhoto, SpotRating,
+    CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, SpotComment,
+    SpotPhoto, SpotRating,
 )
+
+
+@admin.register(MushroomCategory)
+class MushroomCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'order', 'types_count')
+    list_editable = ('order',)
+    search_fields = ('name', 'code')
+
+    @admin.display(description='Видов')
+    def types_count(self, obj):
+        return obj.types.count()
 
 
 @admin.register(MushroomType)
 class MushroomTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code')
+    list_display = ('name', 'code', 'category')
+    list_filter = ('category',)
     search_fields = ('name', 'code')
     prepopulated_fields = {'code': ('name',)}
 

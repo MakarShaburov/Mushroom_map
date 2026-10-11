@@ -6,8 +6,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from .models import (
-    CommentPhoto, CommentVote, MushroomSpot, MushroomType, PhotoLike, SpotComment, SpotPhoto,
-    SpotRating,
+    CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
+    SpotComment, SpotPhoto, SpotRating,
 )
 from .utils import ru_plural
 
@@ -24,9 +24,24 @@ def _save_comment_photos(comment, files):
         CommentPhoto.objects.create(comment=comment, image=image)
 
 
+def mushroom_groups():
+    """Виды грибов, сгруппированные по категориям, для фильтра и форм:
+    [{'code', 'name', 'types': [MushroomType, ...]}, ...]. Пустые категории
+    пропускаются; виды без категории попадают в группу «Без категории»."""
+    groups = [
+        {'code': category.code, 'name': category.name, 'types': list(category.types.all())}
+        for category in MushroomCategory.objects.prefetch_related('types')
+        if category.types.all()
+    ]
+    uncategorized = list(MushroomType.objects.filter(category__isnull=True))
+    if uncategorized:
+        groups.append({'code': 'uncategorized', 'name': 'Без категории', 'types': uncategorized})
+    return groups
+
+
 def map_view(request):
     return render(request, 'spots/map.html', {
-        'mushroom_types': MushroomType.objects.all(),
+        'mushroom_groups': mushroom_groups(),
     })
 
 
@@ -243,7 +258,7 @@ def spot_create(request):
         prefill_lat = None
         prefill_lng = None
     return render(request, 'spots/spot_form.html', {
-        'mushroom_types': MushroomType.objects.all(),
+        'mushroom_groups': mushroom_groups(),
         'prefill_lat': prefill_lat,
         'prefill_lng': prefill_lng,
     })
@@ -320,7 +335,7 @@ def spot_edit(request, pk):
 
     return render(request, 'spots/spot_edit.html', {
         'spot': spot,
-        'mushroom_types': MushroomType.objects.all(),
+        'mushroom_groups': mushroom_groups(),
         'selected_type_ids': set(spot.mushroom_types.values_list('id', flat=True)),
     })
 

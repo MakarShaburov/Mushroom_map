@@ -7,12 +7,38 @@ from django.db import models
 from accounts.utils import vote_weight
 
 
+class MushroomCategory(models.Model):
+    """Категория грибов (благородные, съедобные, ядовитые и т.д.).
+    Управляется через /admin/; в фильтре и формах виды сгруппированы
+    по категориям."""
+
+    code = models.SlugField('Код', max_length=32, unique=True)
+    name = models.CharField('Название', max_length=100)
+    order = models.PositiveSmallIntegerField('Порядок', default=0)
+
+    class Meta:
+        verbose_name = 'Категория грибов'
+        verbose_name_plural = 'Категории грибов'
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
 class MushroomType(models.Model):
     """Вид гриба (справочник). Управляется через /admin/, места
     могут быть отмечены сразу несколькими видами."""
 
     code = models.SlugField('Код', max_length=32, unique=True)
     name = models.CharField('Название', max_length=100)
+    category = models.ForeignKey(
+        MushroomCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='types',
+        verbose_name='Категория',
+    )
 
     class Meta:
         verbose_name = 'Вид гриба'
