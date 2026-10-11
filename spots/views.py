@@ -39,6 +39,18 @@ def mushroom_groups():
     return groups
 
 
+def group_types_by_category(types):
+    """Группирует виды (уже отсортированные через sorted_mushroom_types)
+    по категориям: [{'name': 'Благородные', 'types': [...]}, ...]."""
+    groups = []
+    for mushroom_type in types:
+        name = mushroom_type.category.name if mushroom_type.category_id else 'Без категории'
+        if not groups or groups[-1]['name'] != name:
+            groups.append({'name': name, 'types': []})
+        groups[-1]['types'].append(mushroom_type)
+    return groups
+
+
 def map_view(request):
     return render(request, 'spots/map.html', {
         'mushroom_groups': mushroom_groups(),
@@ -47,20 +59,25 @@ def map_view(request):
 
 def spots_api(request):
     """Отдаёт все грибные места в формате JSON для карты."""
-    data = [
-        {
+    data = []
+    spots = MushroomSpot.objects.select_related('author').prefetch_related(
+        'mushroom_types__category', 'ratings__user__profile',
+    )
+    for spot in spots:
+        types = spot.sorted_mushroom_types()
+        data.append({
             'id': spot.pk,
             'title': spot.title,
             'author': spot.author.username,
-            'mushroom_types': [t.code for t in spot.mushroom_types.all()],
-            'mushroom_types_label': ', '.join(t.name for t in spot.mushroom_types.all()) or '—',
+            'mushroom_types': [t.code for t in types],
+            # Названия в порядке важности категорий — для усечённого списка в поиске.
+            'mushroom_types_names': [t.name for t in types],
+            'mushroom_types_label': ', '.join(t.name for t in types) or '—',
             'latitude': spot.latitude,
             'longitude': spot.longitude,
             'average_rating': spot.average_rating,
             'ratings_count': spot.ratings_count,
-        }
-        for spot in MushroomSpot.objects.select_related('author').prefetch_related('mushroom_types').all()
-    ]
+        })
     return JsonResponse({'spots': data})
 
 
@@ -85,6 +102,7 @@ def _panel_context(request, spot):
         'spot': spot,
         'user_rating_given': user_rating_given,
         'comments': comments,
+        'type_groups': group_types_by_category(spot.sorted_mushroom_types()),
     }
 
 
@@ -171,6 +189,7 @@ def _spot_card_context(request, spot):
         'comment_photos': comment_photos,
         'photos_count': photos_count,
         'reviews_word': reviews_word,
+        'type_groups': group_types_by_category(spot.sorted_mushroom_types()),
     }
 
 

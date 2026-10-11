@@ -605,6 +605,13 @@
         margin: 0 0 14px;
         font-size: 0.95em;
     }
+    .spot-types-list {
+        margin: 6px 0 0;
+        padding-left: 18px;
+    }
+    .spot-types-list li {
+        margin-bottom: 4px;
+    }
     .spot-review-prompt {
         margin: 0 0 8px;
         font-weight: bold;
@@ -1402,9 +1409,11 @@
                                 <div class="profile-spot-title">{{ spot.title }}</div>
                                 <div class="profile-spot-meta">
                                     ★ {{ spot.average_rating|default:"—" }}
-                                    {% if spot.mushroom_types.all %}
-                                        · {% for t in spot.mushroom_types.all %}{{ t.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-                                    {% endif %}
+                                    {% with types=spot.sorted_mushroom_types %}
+                                        {% if types %}
+                                            · {% for t in types|slice:":3" %}{{ t.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if types|length > 3 %}, …{% endif %}
+                                        {% endif %}
+                                    {% endwith %}
                                 </div>
                             </div>
                         {% empty %}
@@ -2083,6 +2092,16 @@
         return Array.from(document.querySelectorAll('.type-checkbox:checked')).map(cb => cb.value);
     }
 
+    // В списке результатов показываем только первые виды (они уже отсортированы
+    // по важности категорий), остальные заменяем на «…». Полный список — во
+    // всплывающей подсказке и в карточке места.
+    const MAX_TYPES_IN_LIST = 3;
+    function shortTypesLabel(names) {
+        if (!names || names.length === 0) return '—';
+        const shown = names.slice(0, MAX_TYPES_IN_LIST).join(', ');
+        return names.length > MAX_TYPES_IN_LIST ? `${shown}, …` : shown;
+    }
+
     function applyFilters() {
         const text = document.getElementById('search-text').value.trim().toLowerCase();
         const selectedTypes = getSelectedTypes();
@@ -2104,8 +2123,14 @@
                 const item = document.createElement('div');
                 item.style.padding = '6px 0';
                 item.style.borderBottom = '1px solid #eee';
-                item.innerHTML = `<a href="#">${entry.data.title}</a><br>` +
-                                  `<small>${entry.data.mushroom_types_label}</small>`;
+                // textContent, а не innerHTML: название места вводит пользователь
+                const titleLink = document.createElement('a');
+                titleLink.href = '#';
+                titleLink.textContent = entry.data.title;
+                const typesLabel = document.createElement('small');
+                typesLabel.textContent = shortTypesLabel(entry.data.mushroom_types_names);
+                typesLabel.title = entry.data.mushroom_types_label;
+                item.append(titleLink, document.createElement('br'), typesLabel);
                 item.style.cursor = 'pointer';
                 item.querySelector('a').addEventListener('click', (ev) => {
                     ev.preventDefault();
@@ -2127,7 +2152,9 @@
         .then(data => {
             data.spots.forEach(spot => {
                 const marker = L.marker([spot.latitude, spot.longitude]).addTo(map);
-                marker.bindTooltip(spot.title);
+                const tooltipText = document.createElement('span');
+                tooltipText.textContent = spot.title;
+                marker.bindTooltip(tooltipText);
                 marker.on('click', () => {
                     if (routePickingField) {
                         setRoutePoint(routePickingField, { lat: spot.latitude, lng: spot.longitude, label: spot.title });

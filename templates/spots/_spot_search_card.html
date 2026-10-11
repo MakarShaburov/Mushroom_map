@@ -56,9 +56,17 @@
     </div>
 
     <div class="spot-tab-panel" data-spot-tab-panel="overview">
-        <p class="spot-card-types"><strong>Виды грибов:</strong>
-            {% for type in spot.mushroom_types.all %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% empty %}не указаны{% endfor %}
-        </p>
+        <div class="spot-card-types"><strong>Виды грибов:</strong>
+            {% if type_groups %}
+                <ul class="spot-types-list">
+                    {% for group in type_groups %}
+                        <li><strong>{{ group.name }}:</strong> {% for type in group.types %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                не указаны
+            {% endif %}
+        </div>
 
         {% if user.is_authenticated %}
             <p class="spot-review-prompt">Оцените и напишите комментарий</p>

@@ -11,7 +11,14 @@
     {% endfor %}
 </div>
 {% endif %}
-<p>Виды грибов: {% for type in spot.mushroom_types.all %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% empty %}не указаны{% endfor %}</p>
+<p>Виды грибов:{% if not type_groups %} не указаны{% endif %}</p>
+{% if type_groups %}
+<ul>
+    {% for group in type_groups %}
+        <li><strong>{{ group.name }}:</strong> {% for type in group.types %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+    {% endfor %}
+</ul>
+{% endif %}
 <p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> (рейтинг автора: {{ spot.author.profile.rating }})</p>
 <p>Координаты: {{ spot.latitude }}, {{ spot.longitude }}</p>
 <p>Рейтинг места: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок, с учётом веса голосов)</p>

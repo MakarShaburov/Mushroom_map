@@ -82,6 +82,22 @@ class MushroomSpot(models.Model):
     def __str__(self):
         return self.title
 
+    def sorted_mushroom_types(self):
+        """Виды места списком: сначала по порядку категорий (благородные,
+        съедобные, …, без категории — в конце), внутри категории по алфавиту.
+        Благодаря этому «самые важные» виды идут первыми, а виды одной
+        категории стоят подряд (удобно для группировки)."""
+        types = self.mushroom_types.all()
+        if 'mushroom_types' not in getattr(self, '_prefetched_objects_cache', {}):
+            types = types.select_related('category')
+
+        def sort_key(t):
+            if t.category_id:
+                return (t.category.order, t.category.name, t.name)
+            return (10 ** 6, '', t.name)
+
+        return sorted(types, key=sort_key)
+
     @property
     def average_rating(self):
         """Средний рейтинг места, взвешенный по рейтингу того, кто
