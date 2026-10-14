@@ -2092,14 +2092,22 @@
         return Array.from(document.querySelectorAll('.type-checkbox:checked')).map(cb => cb.value);
     }
 
-    // В списке результатов показываем только первые виды (они уже отсортированы
-    // по важности категорий), остальные заменяем на «…». Полный список — во
-    // всплывающей подсказке и в карточке места.
+    // Подпись с видами грибов в списке результатов. Если в фильтре выбраны виды,
+    // показываем только их (по ним место и нашлось), остальные виды скрываем.
+    // Без фильтра — первые виды места (они уже отсортированы по важности
+    // категорий). Длинный список обрезается до MAX_TYPES_IN_LIST и «…».
+    // Полный список видов места — во всплывающей подсказке и в карточке места.
     const MAX_TYPES_IN_LIST = 3;
-    function shortTypesLabel(names) {
+    function shortTypesLabel(names, codes, selectedCodes) {
         if (!names || names.length === 0) return '—';
-        const shown = names.slice(0, MAX_TYPES_IN_LIST).join(', ');
-        return names.length > MAX_TYPES_IN_LIST ? `${shown}, …` : shown;
+        let shown = names;
+        if (selectedCodes && selectedCodes.length > 0 && codes) {
+            const wanted = new Set(selectedCodes);
+            const matching = names.filter((_, i) => wanted.has(codes[i]));
+            if (matching.length > 0) shown = matching;
+        }
+        const text = shown.slice(0, MAX_TYPES_IN_LIST).join(', ');
+        return shown.length > MAX_TYPES_IN_LIST ? `${text}, …` : text;
     }
 
     function applyFilters() {
@@ -2128,7 +2136,7 @@
                 titleLink.href = '#';
                 titleLink.textContent = entry.data.title;
                 const typesLabel = document.createElement('small');
-                typesLabel.textContent = shortTypesLabel(entry.data.mushroom_types_names);
+                typesLabel.textContent = shortTypesLabel(entry.data.mushroom_types_names, entry.data.mushroom_types, selectedTypes);
                 typesLabel.title = entry.data.mushroom_types_label;
                 item.append(titleLink, document.createElement('br'), typesLabel);
                 item.style.cursor = 'pointer';
