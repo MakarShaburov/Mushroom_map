@@ -1,0 +1,66 @@
+<form id="report-form" data-post-url="{% url 'spots:spot_report_create' spot.pk %}" novalidate>
+    <h2 class="user-confirm-title">Отчёт о посещении</h2>
+    <p class="user-confirm-text"><strong>{{ spot.title }}</strong><br>Ваш отчёт поможет другим понять, насколько место актуально.</p>
+
+    {% if existing %}
+        <p class="report-hint">За сегодня у вас уже есть отчёт — он будет обновлён.</p>
+    {% endif %}
+
+    <p class="report-section-title">Удалось найти грибы?</p>
+    <div class="report-result-options">
+        {% for option in results %}
+            <label class="report-result-option">
+                <input type="radio" name="result" value="{{ option.value }}"{% if existing.result == option.value %} checked{% endif %}>
+                <span>{{ option.icon }}<br>{{ option.label }}</span>
+            </label>
+        {% endfor %}
+    </div>
+
+    <p class="report-section-title">Когда вы были?</p>
+    <div class="report-date-row">
+        <input type="date" name="visited_on" value="{{ today }}" min="{{ min_date }}" max="{{ today }}">
+        <button type="button" class="report-date-quick" data-date="{{ today }}">Сегодня</button>
+        <button type="button" class="report-date-quick" data-date="{{ yesterday }}">Вчера</button>
+    </div>
+
+    <div id="report-types-block"{% if existing.result == 'none' %} hidden{% endif %}>
+        <p class="report-section-title">Какие грибы нашли? <span class="report-optional">необязательно</span></p>
+        {% if declared %}
+            <div class="report-type-chips">
+                {% for type in declared %}
+                    <label class="report-type-chip">
+                        <input type="checkbox" name="types" value="{{ type.pk }}"{% if type.pk in existing_type_ids %} checked{% endif %}>
+                        <span>{{ type.name }}</span>
+                    </label>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% if other_groups %}
+            <details class="report-other-types">
+                <summary>{% if declared %}Другие виды{% else %}Выбрать виды{% endif %}</summary>
+                {% for group in other_groups %}
+                    <div class="report-type-group">
+                        <div class="report-type-group-name">{{ group.name }}</div>
+                        <div class="report-type-chips">
+                            {% for type in group.types %}
+                                <label class="report-type-chip">
+                                    <input type="checkbox" name="types" value="{{ type.pk }}"{% if type.pk in existing_type_ids %} checked{% endif %}>
+                                    <span>{{ type.name }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </details>
+        {% endif %}
+    </div>
+
+    <p class="report-section-title">Заметка <span class="report-optional">необязательно</span></p>
+    <textarea name="note" class="report-note" rows="2" maxlength="{{ note_max }}" placeholder="Где именно, сколько, какая погода…">{{ existing.note }}</textarea>
+
+    <p class="search-area-error" id="report-error"></p>
+    <div class="user-confirm-buttons">
+        <button type="button" id="report-cancel" class="user-confirm-btn user-confirm-btn-secondary">Отмена</button>
+        <button type="submit" id="report-submit" class="user-confirm-btn user-confirm-btn-primary">Отправить</button>
+    </div>
+</form>

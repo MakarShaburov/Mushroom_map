@@ -82,6 +82,12 @@ class MushroomSpot(models.Model):
     def __str__(self):
         return self.title
 
+    @property
+    def status(self):
+        """Статус места по отчётам грибников (см. spots/status.py)."""
+        from .status import compute_spot_status
+        return compute_spot_status(self.reports.all())
+
     def sorted_mushroom_types(self):
         """Виды места списком: сначала по порядку категорий (благородные,
         съедобные, …, без категории — в конце), внутри категории по алфавиту.
@@ -197,6 +203,47 @@ class CommentPhoto(models.Model):
 
     def __str__(self):
         return f'Фото к комментарию {self.comment_id}'
+
+
+class SpotReport(models.Model):
+    """Отчёт грибника о посещении места: когда был, нашёл ли грибы и какие.
+    На отчётах строится статус места (spots/status.py); в будущем по ним же
+    можно считать сезонность. Один отчёт на автора, место и дату — повторная
+    отправка за ту же дату обновляет прежний."""
+
+    class Result(models.TextChoices):
+        PLENTY = 'plenty', 'Много грибов'
+        SOME = 'some', 'Немного'
+        NONE = 'none', 'Не нашёл'
+
+    spot = models.ForeignKey(
+        MushroomSpot, on_delete=models.CASCADE, related_name='reports',
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='spot_reports',
+    )
+    visited_on = models.DateField('Дата посещения')
+    result = models.CharField('Результат', max_length=10, choices=Result.choices)
+    types = models.ManyToManyField(
+        MushroomType, related_name='reports', verbose_name='Найденные виды', blank=True,
+    )
+    note = models.CharField('Заметка', max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Отчёт о посещении'
+        verbose_name_plural = 'Отчёты о посещении'
+        ordering = ['-visited_on', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['spot', 'author', 'visited_on'], name='unique_report_per_day',
+            ),
+        ]
+        indexes = [models.Index(fields=['spot', '-visited_on'])]
+
+    def __str__(self):
+        return f'{self.spot} — {self.get_result_display()} ({self.visited_on})'
 
 
 class CommentVote(models.Model):

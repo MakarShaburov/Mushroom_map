@@ -1062,6 +1062,253 @@
         background: var(--link);
         color: #fff;
     }
+    /* --- Статус места и отчёты грибников --- */
+    .status-dot {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: #8b949e;
+        flex-shrink: 0;
+    }
+    .status-today { background: #3fb950; }
+    .status-recent { background: #8bc34a; }
+    .status-old { background: #e6a23c; }
+    .status-empty { background: #e5534b; }
+    .status-no_data { background: #8b949e; }
+    .spot-status {
+        display: flex;
+        align-items: center;
+        margin: 0 0 4px;
+        font-weight: bold;
+    }
+    .spot-status-note {
+        margin: 0 0 8px;
+        color: var(--muted);
+        font-size: 0.85em;
+    }
+    .spot-status-line {
+        display: flex;
+        align-items: center;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 0.85em;
+    }
+    .spot-tooltip-status {
+        display: flex;
+        align-items: center;
+        font-size: 0.85em;
+    }
+    .spot-report-open {
+        width: 100%;
+        margin: 6px 0 12px;
+        padding: 9px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        font-size: 14px;
+        cursor: pointer;
+    }
+    .spot-report-open:hover {
+        border-color: var(--link);
+    }
+    .spot-reports {
+        margin-bottom: 16px;
+    }
+    .spot-reports-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+    .spot-report-row {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+    }
+    .spot-report-row[hidden] {
+        display: none;
+    }
+    .spot-report-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .spot-report-result {
+        font-weight: bold;
+    }
+    .spot-report-result-none {
+        color: var(--muted);
+    }
+    .spot-report-date {
+        color: var(--muted);
+        font-size: 0.85em;
+    }
+    .spot-report-types {
+        margin-top: 2px;
+        font-size: 0.9em;
+    }
+    .spot-report-note {
+        margin: 4px 0 0;
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
+        white-space: pre-line;
+    }
+    .spot-report-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 0.85em;
+    }
+    .spot-report-delete,
+    .spot-reports-more {
+        border: none;
+        background: none;
+        color: var(--link);
+        font: inherit;
+        font-size: 0.85em;
+        cursor: pointer;
+        padding: 0;
+    }
+    .spot-reports-more {
+        margin-top: 8px;
+    }
+    .report-modal {
+        width: min(440px, 94vw);
+        max-height: 90vh;
+        overflow-y: auto;
+        text-align: left;
+    }
+    .report-modal .user-confirm-title,
+    .report-modal .user-confirm-text {
+        text-align: center;
+    }
+    .report-hint {
+        margin: 0 0 10px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--muted);
+        font-size: 0.85em;
+        text-align: center;
+    }
+    .report-section-title {
+        margin: 14px 0 6px;
+        font-weight: bold;
+        font-size: 0.95em;
+    }
+    .report-optional {
+        color: var(--muted);
+        font-weight: normal;
+        font-size: 0.85em;
+    }
+    .report-result-options {
+        display: flex;
+        gap: 8px;
+    }
+    .report-result-option {
+        position: relative;
+        flex: 1;
+    }
+    .report-result-option input,
+    .report-type-chip input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .report-result-option span {
+        display: block;
+        padding: 10px 4px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        text-align: center;
+        font-size: 0.9em;
+        cursor: pointer;
+    }
+    .report-result-option input:checked + span {
+        border-color: var(--link);
+        background: var(--bg);
+        color: var(--link);
+        font-weight: bold;
+    }
+    .report-result-option input:focus-visible + span,
+    .report-type-chip input:focus-visible + span {
+        outline: 2px solid var(--link);
+    }
+    .report-date-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .report-date-row input[type="date"] {
+        flex: 1;
+        min-width: 0;
+        padding: 7px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+    }
+    .report-date-quick {
+        padding: 7px 12px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 0.9em;
+        cursor: pointer;
+    }
+    .report-type-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+    .report-type-chip {
+        position: relative;
+    }
+    .report-type-chip span {
+        display: block;
+        padding: 5px 10px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        font-size: 0.85em;
+        cursor: pointer;
+    }
+    .report-type-chip input:checked + span {
+        border-color: var(--link);
+        background: var(--bg);
+        color: var(--link);
+    }
+    .report-other-types summary {
+        margin: 4px 0 8px;
+        color: var(--link);
+        font-size: 0.9em;
+        cursor: pointer;
+    }
+    .report-type-group-name {
+        margin: 8px 0 4px;
+        color: var(--muted);
+        font-size: 0.8em;
+    }
+    .report-note {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        resize: vertical;
+    }
     .search-area-chip {
         display: flex;
         align-items: stretch;
@@ -1565,6 +1812,13 @@
                 </form>
             </div>
         </div>
+
+        <div id="report-modal-overlay" class="auth-modal-overlay" style="display: none;">
+            <div class="auth-modal report-modal" role="dialog" aria-modal="true">
+                <button type="button" id="report-modal-close" class="auth-modal-close" title="Закрыть">✕</button>
+                <div id="report-modal-body"></div>
+            </div>
+        </div>
     {% endif %}
 
 
@@ -1572,6 +1826,9 @@
         <button type="button" class="map-context-menu-item" data-action="add-spot">📍 Добавить объект</button>
         <button type="button" class="map-context-menu-item" data-action="route-to">⬇️ Маршрут сюда</button>
         <button type="button" class="map-context-menu-item" data-action="route-from">⬆️ Маршрут отсюда</button>
+        {% if user.is_authenticated %}
+        <button type="button" class="map-context-menu-item" data-action="report-visit" style="display: none;">📝 Отчёт о посещении</button>
+        {% endif %}
         <button type="button" class="map-context-menu-item" data-action="area-set">🎯 Указать область</button>
         <button type="button" class="map-context-menu-item" data-action="area-clear" style="display: none;">✖️ Убрать область</button>
     </div>
@@ -1817,6 +2074,24 @@
 
     function bindSpotCardActions(content) {
         const spotCardEl = content.querySelector('.spot-card');
+
+        // Отчёты грибников: открыть форму, удалить свой отчёт, показать все
+        const reportOpenBtn = content.querySelector('.spot-report-open');
+        if (reportOpenBtn) {
+            reportOpenBtn.addEventListener('click', () => openReportModal(spotCardEl.dataset.spotId));
+        }
+        content.querySelectorAll('.spot-report-delete').forEach((btn) => {
+            btn.addEventListener('click', () => deleteSpotReport(btn.dataset.deleteUrl));
+        });
+        const reportsMoreBtn = content.querySelector('.spot-reports-more');
+        if (reportsMoreBtn) {
+            reportsMoreBtn.addEventListener('click', () => {
+                const expanded = reportsMoreBtn.dataset.expanded === '1';
+                content.querySelectorAll('[data-report-extra]').forEach((row) => { row.hidden = expanded; });
+                reportsMoreBtn.dataset.expanded = expanded ? '0' : '1';
+                reportsMoreBtn.textContent = expanded ? `Показать все (${reportsMoreBtn.dataset.total})` : 'Свернуть';
+            });
+        }
 
         const routeBtn = content.querySelector('.spot-card-route-btn');
         if (routeBtn) {
@@ -2221,6 +2496,28 @@
         return Array.from(document.querySelectorAll('.type-checkbox:checked')).map(cb => cb.value);
     }
 
+    // Статус места (по отчётам грибников): цветная точка и подпись — в списке
+    // поиска и во всплывающей подсказке метки. textContent — на всякий случай.
+    function buildStatusLine(status, className) {
+        const line = document.createElement('div');
+        line.className = className;
+        const dot = document.createElement('span');
+        dot.className = `status-dot status-${status.code}`;
+        const text = document.createElement('span');
+        text.textContent = status.label;
+        line.append(dot, text);
+        return line;
+    }
+
+    function buildSpotTooltip(spot) {
+        const box = document.createElement('div');
+        const title = document.createElement('strong');
+        title.textContent = spot.title;
+        box.appendChild(title);
+        if (spot.status) box.appendChild(buildStatusLine(spot.status, 'spot-tooltip-status'));
+        return box;
+    }
+
     // Подпись с видами грибов в списке результатов. Если в фильтре выбраны виды,
     // показываем только их (по ним место и нашлось), остальные виды скрываем.
     // Без фильтра — первые виды места (они уже отсортированы по важности
@@ -2289,6 +2586,7 @@
                 typesLabel.textContent = shortTypesLabel(entry.data.mushroom_types_names, entry.data.mushroom_types, selectedTypes);
                 typesLabel.title = entry.data.mushroom_types_label;
                 item.append(titleLink, document.createElement('br'), typesLabel);
+                if (entry.data.status) item.appendChild(buildStatusLine(entry.data.status, 'spot-status-line'));
                 item.style.cursor = 'pointer';
                 item.querySelector('a').addEventListener('click', (ev) => {
                     ev.preventDefault();
@@ -2325,9 +2623,7 @@
         .then(data => {
             data.spots.forEach(spot => {
                 const marker = L.marker([spot.latitude, spot.longitude]).addTo(map);
-                const tooltipText = document.createElement('span');
-                tooltipText.textContent = spot.title;
-                marker.bindTooltip(tooltipText);
+                marker.bindTooltip(buildSpotTooltip(spot));
                 marker.on('click', () => {
                     if (routePickingField) {
                         setRoutePoint(routePickingField, { lat: spot.latitude, lng: spot.longitude, label: spot.title });
@@ -2341,7 +2637,7 @@
                     // поверх уже выставленных координат метки.
                     L.DomEvent.preventDefault(e.originalEvent);
                     L.DomEvent.stopPropagation(e.originalEvent);
-                    openMapContextMenu(e.originalEvent, L.latLng(spot.latitude, spot.longitude), spot.title);
+                    openMapContextMenu(e.originalEvent, L.latLng(spot.latitude, spot.longitude), spot.title, spot.id);
                 });
                 allSpots.push({ data: spot, marker: marker });
             });
@@ -2534,20 +2830,26 @@
     const mapContextMenu = document.getElementById('map-context-menu');
     let contextMenuLatLng = null;
     let contextMenuLabel = null; // название метки, если меню открыто на ней, иначе null
+    let contextMenuSpotId = null; // id места, если меню открыто на метке, иначе null
 
     function closeMapContextMenu() {
         mapContextMenu.style.display = 'none';
         contextMenuLatLng = null;
         contextMenuLabel = null;
+        contextMenuSpotId = null;
     }
 
     // Общий показ меню: latlng (и опционально label) передаём явно, чтобы
     // при правом клике по метке гриба можно было подставить её точные
     // координаты и название из базы, а не то место, куда попал курсор
     // (иконка маркера крупнее точки, которую она отмечает).
-    function openMapContextMenu(originalEvent, latlng, label) {
+    function openMapContextMenu(originalEvent, latlng, label, spotId) {
         contextMenuLatLng = latlng;
         contextMenuLabel = label || null;
+        contextMenuSpotId = spotId || null;
+        // «Отчёт о посещении» — только при правом клике по метке места
+        const reportVisitItem = mapContextMenu.querySelector('[data-action="report-visit"]');
+        if (reportVisitItem) reportVisitItem.style.display = contextMenuSpotId ? 'flex' : 'none';
         mapContextMenu.querySelector('[data-action="area-clear"]').style.display = searchArea ? 'flex' : 'none';
         mapContextMenu.style.left = originalEvent.clientX + 'px';
         mapContextMenu.style.top = originalEvent.clientY + 'px';
@@ -2600,6 +2902,15 @@
         setRoutePoint('from', point);
         armRouteField('to');
     });
+
+    const reportVisitMenuItem = document.querySelector('[data-action="report-visit"]');
+    if (reportVisitMenuItem) {
+        reportVisitMenuItem.addEventListener('click', () => {
+            const spotId = contextMenuSpotId;
+            closeMapContextMenu();
+            if (spotId) openReportModal(spotId);
+        });
+    }
 
     // --- Область поиска: диалог радиуса, круг на карте, плашка и отмена ---
     const areaOverlay = document.getElementById('search-area-overlay');
@@ -2976,6 +3287,107 @@
     document.getElementById('review-modal-close').addEventListener('click', closeReviewModal);
     reviewModalOverlay.addEventListener('click', (e) => {
         if (e.target === reviewModalOverlay) closeReviewModal();
+    });
+
+    // --- Отчёт о посещении места: модальное окно (форму присылает сервер) ---
+    const reportOverlay = document.getElementById('report-modal-overlay');
+    const reportBody = document.getElementById('report-modal-body');
+
+    // Подставляет в окно места свежую карточку и обновляет статус этого места
+    // в списке поиска и в подсказке метки.
+    function applySpotCardHtml(html) {
+        const content = document.getElementById('spot-card-content');
+        content.innerHTML = html;
+        startSpotCardCarousel(content);
+        bindSpotCardActions(content);
+        const card = content.querySelector('.spot-card');
+        if (!card) return;
+        const entry = allSpots.find((e) => String(e.data.id) === card.dataset.spotId);
+        if (entry) {
+            entry.data.status = { code: card.dataset.statusCode, label: card.dataset.statusLabel };
+            entry.marker.setTooltipContent(buildSpotTooltip(entry.data));
+            applyFilters();
+        }
+    }
+
+    function openReportModal(spotId) {
+        fetch(`/spots/${spotId}/report/form/`)
+            .then((res) => {
+                if (!res.ok) throw new Error('request failed');
+                return res.text();
+            })
+            .then((html) => {
+                reportBody.innerHTML = html;
+                reportOverlay.style.display = 'flex';
+            })
+            .catch(() => alert('Не удалось открыть форму отчёта. Попробуйте ещё раз.'));
+    }
+
+    function closeReportModal() {
+        reportOverlay.style.display = 'none';
+        reportBody.innerHTML = '';
+    }
+
+    function deleteSpotReport(url) {
+        if (!confirm('Удалить этот отчёт?')) return;
+        fetch(url, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
+            .then((res) => {
+                if (!res.ok) throw new Error('request failed');
+                return res.text();
+            })
+            .then(applySpotCardHtml)
+            .catch(() => alert('Не удалось удалить отчёт. Попробуйте ещё раз.'));
+    }
+
+    reportBody.addEventListener('click', (e) => {
+        const quickDate = e.target.closest('.report-date-quick');
+        if (quickDate) {
+            reportBody.querySelector('input[name="visited_on"]').value = quickDate.dataset.date;
+            return;
+        }
+        if (e.target.closest('#report-cancel')) closeReportModal();
+    });
+    // «Не нашёл» — виды не спрашиваем
+    reportBody.addEventListener('change', (e) => {
+        if (e.target.name === 'result') {
+            reportBody.querySelector('#report-types-block').hidden = e.target.value === 'none';
+        }
+    });
+    reportBody.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const errorEl = reportBody.querySelector('#report-error');
+        const submitBtn = reportBody.querySelector('#report-submit');
+        if (!form.querySelector('input[name="result"]:checked')) {
+            errorEl.textContent = 'Выберите, нашли ли вы грибы.';
+            return;
+        }
+        errorEl.textContent = '';
+        submitBtn.disabled = true;
+        fetch(form.dataset.postUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() },
+            body: new FormData(form),
+        }).then(async (res) => {
+            if (res.ok) {
+                applySpotCardHtml(await res.text());
+                closeReportModal();
+            } else {
+                const data = await res.json().catch(() => ({}));
+                errorEl.textContent = data.error || 'Не удалось отправить отчёт.';
+                submitBtn.disabled = false;
+            }
+        }).catch(() => {
+            errorEl.textContent = 'Нет связи. Попробуйте ещё раз.';
+            submitBtn.disabled = false;
+        });
+    });
+    document.getElementById('report-modal-close').addEventListener('click', closeReportModal);
+    reportOverlay.addEventListener('click', (e) => {
+        if (e.target === reportOverlay) closeReportModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeReportModal();
     });
     {% endif %}
 

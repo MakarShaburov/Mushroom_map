@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, SpotComment,
-    SpotPhoto, SpotRating,
+    SpotPhoto, SpotRating, SpotReport,
 )
 
 
@@ -68,3 +68,12 @@ class SpotCommentAdmin(admin.ModelAdmin):
 class CommentVoteAdmin(admin.ModelAdmin):
     list_display = ('comment', 'user', 'is_like', 'created_at')
     list_filter = ('is_like',)
+
+
+@admin.register(SpotReport)
+class SpotReportAdmin(admin.ModelAdmin):
+    list_display = ('spot', 'author', 'result', 'visited_on', 'created_at')
+    list_filter = ('result', 'visited_on')
+    search_fields = ('spot__title', 'author__username', 'note')
+    date_hierarchy = 'visited_on'
+    filter_horizontal = ('types',)

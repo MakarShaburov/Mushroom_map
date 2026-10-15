@@ -1,19 +1,27 @@
+from datetime import date, timedelta
+
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
-    SpotComment, SpotPhoto, SpotRating,
+    SpotComment, SpotPhoto, SpotRating, SpotReport,
 )
+from .status import STATUS_WINDOW_DAYS, compute_spot_status
 from .utils import ru_plural
 
 PANEL_HEADER = 'X-Panel-Request'
 PHOTO_LIKE_MODELS = {'spot': SpotPhoto, 'comment_photo': CommentPhoto}
 MAX_COMMENT_PHOTOS = 10
+REPORTS_IN_CARD = 50          # сколько последних отчётов выводим в карточке места
+REPORT_NOTE_MAX = 300
+REPORT_MAX_BACKDATE_DAYS = STATUS_WINDOW_DAYS  # отчёт можно внести задним числом не глубже
+REPORT_RESULT_ICONS = {'plenty': '🍄', 'some': '🧺', 'none': '🚫'}
 
 
 def _save_comment_photos(comment, files):
@@ -60,11 +68,15 @@ def map_view(request):
 def spots_api(request):
     """Отдаёт все грибные места в формате JSON для карты."""
     data = []
+    # Для статуса нужны только отчёты за окно статуса — подгружаем их одним запросом.
+    status_cutoff = timezone.localdate() - timedelta(days=STATUS_WINDOW_DAYS)
     spots = MushroomSpot.objects.select_related('author').prefetch_related(
         'mushroom_types__category', 'ratings__user__profile',
+        Prefetch('reports', queryset=SpotReport.objects.filter(visited_on__gte=status_cutoff)),
     )
     for spot in spots:
         types = spot.sorted_mushroom_types()
+        status = compute_spot_status(spot.reports.all())
         data.append({
             'id': spot.pk,
             'title': spot.title,
@@ -73,6 +85,7 @@ def spots_api(request):
             # Названия в порядке важности категорий — для усечённого списка в поиске.
             'mushroom_types_names': [t.name for t in types],
             'mushroom_types_label': ', '.join(t.name for t in types) or '—',
+            'status': {'code': status.code, 'label': status.label},
             'latitude': spot.latitude,
             'longitude': spot.longitude,
             'average_rating': spot.average_rating,
@@ -178,8 +191,19 @@ def _spot_card_context(request, spot):
         p.heart_count = comment_heart_counts.get(p.pk, 0)
         p.liked_by_me = p.pk in my_comment_hearts
 
+    # Отчёты грибников и статус места
+    reports = list(spot.reports.select_related('author').prefetch_related('types')[:REPORTS_IN_CARD])
+    for report in reports:
+        report.icon = REPORT_RESULT_ICONS.get(report.result, '')
+        report.can_delete = request.user.is_authenticated and (
+            report.author_id == request.user.pk or request.user.is_staff
+        )
+
     return {
         'spot': spot,
+        'status': compute_spot_status(reports),
+        'reports': reports,
+        'reports_total': spot.reports.count(),
         'spot_photos': spot_photos,
         'rounded_rating': rounded_rating,
         'ratings_word': ratings_word,
@@ -216,6 +240,94 @@ def spot_review_create(request, pk):
     if text:
         comment = SpotComment.objects.create(spot=spot, author=request.user, text=text)
         _save_comment_photos(comment, request.FILES.getlist('images'))
+    return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
+
+
+def _report_error(message):
+    return JsonResponse({'error': message}, status=400)
+
+
+@login_required
+def spot_report_form(request, pk):
+    """Форма отчёта о посещении (HTML-партиал для модального окна на карте).
+    Виды самого места выводятся первыми, остальные — в сворачиваемом списке
+    по категориям. Если за сегодня отчёт уже есть, форма заполняется им."""
+    spot = get_object_or_404(MushroomSpot, pk=pk)
+    today = timezone.localdate()
+    existing = (
+        SpotReport.objects.filter(spot=spot, author=request.user, visited_on=today)
+        .prefetch_related('types').first()
+    )
+    declared = spot.sorted_mushroom_types()
+    declared_ids = {t.pk for t in declared}
+    other_groups = []
+    for group in mushroom_groups():
+        types = [t for t in group['types'] if t.pk not in declared_ids]
+        if types:
+            other_groups.append({'name': group['name'], 'types': types})
+
+    return render(request, 'spots/_report_form.html', {
+        'spot': spot,
+        'results': [
+            {'value': value, 'label': label, 'icon': REPORT_RESULT_ICONS[value]}
+            for value, label in SpotReport.Result.choices
+        ],
+        'today': today.isoformat(),
+        'yesterday': (today - timedelta(days=1)).isoformat(),
+        'min_date': (today - timedelta(days=REPORT_MAX_BACKDATE_DAYS)).isoformat(),
+        'existing': existing,
+        'existing_type_ids': {t.pk for t in existing.types.all()} if existing else set(),
+        'declared': declared,
+        'other_groups': other_groups,
+        'note_max': REPORT_NOTE_MAX,
+    })
+
+
+@login_required
+@require_POST
+def spot_report_create(request, pk):
+    """Сохраняет отчёт о посещении. Отчёт за ту же дату обновляет прежний
+    (один отчёт на автора, место и дату). При успехе возвращает обновлённую
+    карточку места, при ошибке валидации — JSON {'error': ...} со статусом 400."""
+    spot = get_object_or_404(MushroomSpot, pk=pk)
+    today = timezone.localdate()
+
+    result = request.POST.get('result', '')
+    if result not in SpotReport.Result.values:
+        return _report_error('Выберите, нашли ли вы грибы.')
+
+    try:
+        visited_on = date.fromisoformat(request.POST.get('visited_on') or today.isoformat())
+    except ValueError:
+        return _report_error('Укажите корректную дату посещения.')
+    if visited_on > today:
+        return _report_error('Дата посещения не может быть в будущем.')
+    if visited_on < today - timedelta(days=REPORT_MAX_BACKDATE_DAYS):
+        return _report_error(f'Можно указать дату не раньше чем за {REPORT_MAX_BACKDATE_DAYS} дней.')
+
+    note = request.POST.get('note', '').strip()[:REPORT_NOTE_MAX]
+    report, _ = SpotReport.objects.update_or_create(
+        spot=spot, author=request.user, visited_on=visited_on,
+        defaults={'result': result, 'note': note},
+    )
+    if result == SpotReport.Result.NONE:
+        report.types.clear()
+    else:
+        type_ids = [int(v) for v in request.POST.getlist('types') if v.isdigit()]
+        report.types.set(MushroomType.objects.filter(pk__in=type_ids))
+
+    return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
+
+
+@login_required
+@require_POST
+def spot_report_delete(request, report_id):
+    """Удаление отчёта: автором или администратором. Возвращает обновлённую карточку."""
+    report = get_object_or_404(SpotReport.objects.select_related('spot'), pk=report_id)
+    if report.author_id != request.user.pk and not request.user.is_staff:
+        return JsonResponse({'error': 'Нельзя удалить чужой отчёт.'}, status=403)
+    spot = report.spot
+    report.delete()
     return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
 
 

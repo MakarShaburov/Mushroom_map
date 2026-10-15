@@ -7,6 +7,8 @@
     data-spot-title="{{ spot.title }}"
     data-spot-photo="{% if spot_photos %}{{ spot_photos.0.image.url }}{% endif %}"
     data-spot-my-score="{{ my_score }}"
+    data-status-code="{{ status.code }}"
+    data-status-label="{{ status.label }}"
 >
     {% if spot_photos %}
         <div class="spot-card-photos">
@@ -34,6 +36,21 @@
             <span class="spot-card-rating-count">Пока нет оценок</span>
         {% endif %}
     </div>
+
+    <div class="spot-status">
+        <span class="status-dot status-{{ status.code }}"></span>
+        <span class="spot-status-label">{{ status.label }}</span>
+    </div>
+    {% if status.recent_count %}
+        <p class="spot-status-note">Отчётов за 30 дней: {{ status.recent_count }}</p>
+    {% elif status.last_report_date %}
+        <p class="spot-status-note">Последний отчёт: {{ status.last_report_date|date:"d.m.Y" }}</p>
+    {% endif %}
+    {% if user.is_authenticated %}
+        <button type="button" class="spot-report-open">📝 Сообщить о посещении</button>
+    {% else %}
+        <p class="spot-card-login-hint"><a href="{% url 'accounts:login' %}" data-auth-open="login">Войдите</a>, чтобы сообщить о посещении.</p>
+    {% endif %}
 
     <p class="spot-card-description">{{ spot.description }}</p>
 
@@ -65,6 +82,35 @@
                 </ul>
             {% else %}
                 не указаны
+            {% endif %}
+        </div>
+
+        <div class="spot-reports">
+            <div class="spot-reports-title"><strong>Отчёты грибников</strong> <span class="spot-tab-badge">{{ reports_total }}</span></div>
+            {% for report in reports %}
+                <div class="spot-report-row"{% if forloop.counter > 3 %} hidden data-report-extra{% endif %}>
+                    <div class="spot-report-head">
+                        <span class="spot-report-result spot-report-result-{{ report.result }}">{{ report.icon }} {{ report.get_result_display }}</span>
+                        <span class="spot-report-date">{{ report.visited_on|date:"d.m.Y" }}</span>
+                    </div>
+                    {% with types=report.types.all %}
+                        {% if types %}
+                            <div class="spot-report-types">{% for type in types %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+                        {% endif %}
+                    {% endwith %}
+                    {% if report.note %}<p class="spot-report-note">{{ report.note }}</p>{% endif %}
+                    <div class="spot-report-foot">
+                        <span class="spot-report-author user-link" data-user-open="{{ report.author.username }}" data-user-card-url="{% url 'accounts:user_card' report.author.username %}">{{ report.author.username }}</span>
+                        {% if report.can_delete %}
+                            <button type="button" class="spot-report-delete" data-delete-url="{% url 'spots:spot_report_delete' report.pk %}">Удалить</button>
+                        {% endif %}
+                    </div>
+                </div>
+            {% empty %}
+                <p class="spot-card-empty">Отчётов пока нет. Побывали здесь — расскажите!</p>
+            {% endfor %}
+            {% if reports|length > 3 %}
+                <button type="button" class="spot-reports-more" data-total="{{ reports|length }}">Показать все ({{ reports|length }})</button>
             {% endif %}
         </div>
 
