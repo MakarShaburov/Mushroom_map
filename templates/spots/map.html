@@ -1062,6 +1062,100 @@
         background: var(--link);
         color: #fff;
     }
+    .search-area-chip {
+        display: flex;
+        align-items: stretch;
+        margin-bottom: 12px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: var(--bg);
+        overflow: hidden;
+    }
+    .search-area-chip-main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 4px 7px 12px;
+        border: none;
+        background: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 0.9em;
+        text-align: left;
+        cursor: pointer;
+    }
+    .search-area-chip-text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .search-area-chip-clear {
+        flex-shrink: 0;
+        padding: 0 12px;
+        border: none;
+        background: none;
+        color: var(--muted);
+        font-size: 14px;
+        cursor: pointer;
+    }
+    .search-area-chip-clear:hover {
+        color: var(--text);
+    }
+    .search-area-empty {
+        margin: 10px 0;
+        color: var(--muted);
+        font-size: 0.9em;
+    }
+    .search-area-modal {
+        width: min(400px, 92vw);
+    }
+    .search-area-presets {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        margin-bottom: 14px;
+    }
+    .search-area-preset {
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 0.9em;
+        cursor: pointer;
+    }
+    .search-area-preset.active {
+        border-color: var(--link);
+        color: var(--link);
+    }
+    .search-area-field {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 6px;
+    }
+    .search-area-field input {
+        width: 110px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text);
+        font: inherit;
+        text-align: center;
+    }
+    .search-area-error {
+        min-height: 1.3em;
+        margin: 0 0 12px;
+        color: #e5534b;
+        font-size: 0.85em;
+    }
     .photo-lightbox-overlay {
         position: fixed;
         inset: 0;
@@ -1311,6 +1405,13 @@
 
         <div id="search-panel-body">
             <div id="search-results-view">
+                <div id="search-area-chip" class="search-area-chip" style="display: none;">
+                    <button type="button" id="search-area-chip-edit" class="search-area-chip-main" title="Изменить радиус">
+                        <span>🎯</span>
+                        <span id="search-area-chip-text" class="search-area-chip-text"></span>
+                    </button>
+                    <button type="button" id="search-area-chip-clear" class="search-area-chip-clear" title="Убрать область" aria-label="Убрать область">✕</button>
+                </div>
                 <p class="search-panel-label">Места</p>
                 <p id="search-count" style="color: var(--muted); font-size: 0.9em;"></p>
                 <div id="search-results"></div>
@@ -1471,6 +1572,34 @@
         <button type="button" class="map-context-menu-item" data-action="add-spot">📍 Добавить объект</button>
         <button type="button" class="map-context-menu-item" data-action="route-to">⬇️ Маршрут сюда</button>
         <button type="button" class="map-context-menu-item" data-action="route-from">⬆️ Маршрут отсюда</button>
+        <button type="button" class="map-context-menu-item" data-action="area-set">🎯 Указать область</button>
+        <button type="button" class="map-context-menu-item" data-action="area-clear" style="display: none;">✖️ Убрать область</button>
+    </div>
+
+    <div id="search-area-overlay" class="auth-modal-overlay" style="display: none;">
+        <div class="auth-modal user-confirm-modal search-area-modal" role="dialog" aria-modal="true" aria-labelledby="search-area-title">
+            <button type="button" id="search-area-close" class="auth-modal-close" title="Закрыть">✕</button>
+            <h2 class="user-confirm-title" id="search-area-title">Область поиска</h2>
+            <p class="user-confirm-text">Центр: <strong id="search-area-center"></strong><br>Поиск покажет места только в этом радиусе.</p>
+            <form id="search-area-form" novalidate>
+                <div class="search-area-presets">
+                    <button type="button" class="search-area-preset" data-km="1">1 км</button>
+                    <button type="button" class="search-area-preset" data-km="5">5 км</button>
+                    <button type="button" class="search-area-preset" data-km="10">10 км</button>
+                    <button type="button" class="search-area-preset" data-km="25">25 км</button>
+                    <button type="button" class="search-area-preset" data-km="50">50 км</button>
+                </div>
+                <label class="search-area-field">
+                    <span>Радиус, км</span>
+                    <input type="text" id="search-area-radius" inputmode="decimal" autocomplete="off">
+                </label>
+                <p class="search-area-error" id="search-area-error"></p>
+                <div class="user-confirm-buttons">
+                    <button type="button" id="search-area-cancel" class="user-confirm-btn user-confirm-btn-secondary">Отмена</button>
+                    <button type="submit" class="user-confirm-btn user-confirm-btn-primary">Применить</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div id="user-confirm-overlay" class="auth-modal-overlay" style="display: none;">
@@ -2110,6 +2239,26 @@
         return shown.length > MAX_TYPES_IN_LIST ? `${text}, …` : text;
     }
 
+    // --- Область поиска: радиус вокруг точки, заданной правым кликом по карте ---
+    // Пока область задана, и список, и маркеры на карте ограничены ею
+    // (вместе с текстовым поиском и фильтром по видам).
+    const MAX_AREA_KM = 500;
+    const DEFAULT_AREA_KM = 5;
+    let searchArea = null;      // { center: L.LatLng, radiusM, label } или null
+    let searchAreaLayer = null; // круг и точка центра на карте
+
+    // 1 км -> «1 км», 2.5 км -> «2,5 км», 0.5 км -> «500 м»
+    function formatDistance(meters) {
+        if (meters < 1000) return `${Math.round(meters)} м`;
+        const km = Math.round(meters / 100) / 10;
+        return `${String(km).replace('.', ',')} км`;
+    }
+
+    function spotInSearchArea(spot) {
+        if (!searchArea) return true;
+        return searchArea.center.distanceTo(L.latLng(spot.latitude, spot.longitude)) <= searchArea.radiusM;
+    }
+
     function applyFilters() {
         const text = document.getElementById('search-text').value.trim().toLowerCase();
         const selectedTypes = getSelectedTypes();
@@ -2122,7 +2271,8 @@
             // "ИЛИ": показываем место, если оно содержит хотя бы один из отмеченных видов
             const matchesTypes = selectedTypes.length === 0 ||
                 entry.data.mushroom_types.some(t => selectedTypes.includes(t));
-            const visible = matchesText && matchesTypes;
+            const matchesArea = spotInSearchArea(entry.data);
+            const visible = matchesText && matchesTypes && matchesArea;
 
             if (visible) {
                 if (!map.hasLayer(entry.marker)) entry.marker.addTo(map);
@@ -2150,6 +2300,21 @@
                 if (map.hasLayer(entry.marker)) map.removeLayer(entry.marker);
             }
         });
+
+        if (visibleCount === 0 && searchArea) {
+            const empty = document.createElement('p');
+            empty.className = 'search-area-empty';
+            empty.append('В выбранной области ничего не найдено. ');
+            const clearLink = document.createElement('a');
+            clearLink.href = '#';
+            clearLink.textContent = 'Убрать область';
+            clearLink.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                clearSearchArea();
+            });
+            empty.appendChild(clearLink);
+            resultsBox.appendChild(empty);
+        }
 
         document.getElementById('search-count').textContent = `Найдено мест: ${visibleCount}`;
         document.getElementById('search-filter-toggle').classList.toggle('active', selectedTypes.length > 0);
@@ -2383,6 +2548,7 @@
     function openMapContextMenu(originalEvent, latlng, label) {
         contextMenuLatLng = latlng;
         contextMenuLabel = label || null;
+        mapContextMenu.querySelector('[data-action="area-clear"]').style.display = searchArea ? 'flex' : 'none';
         mapContextMenu.style.left = originalEvent.clientX + 'px';
         mapContextMenu.style.top = originalEvent.clientY + 'px';
         mapContextMenu.style.display = 'block';
@@ -2434,6 +2600,130 @@
         setRoutePoint('from', point);
         armRouteField('to');
     });
+
+    // --- Область поиска: диалог радиуса, круг на карте, плашка и отмена ---
+    const areaOverlay = document.getElementById('search-area-overlay');
+    const areaForm = document.getElementById('search-area-form');
+    const areaInput = document.getElementById('search-area-radius');
+    const areaError = document.getElementById('search-area-error');
+    const areaChip = document.getElementById('search-area-chip');
+    let pendingAreaCenter = null;
+    let pendingAreaLabel = '';
+
+    function updateAreaPresets() {
+        const value = Number(areaInput.value.trim().replace(',', '.'));
+        document.querySelectorAll('.search-area-preset').forEach((btn) => {
+            btn.classList.toggle('active', Number(btn.dataset.km) === value);
+        });
+    }
+
+    function openSearchAreaDialog(center, label) {
+        pendingAreaCenter = center;
+        pendingAreaLabel = label;
+        document.getElementById('search-area-center').textContent = label;
+        const km = searchArea ? searchArea.radiusM / 1000 : DEFAULT_AREA_KM;
+        areaInput.value = String(Math.round(km * 10) / 10).replace('.', ',');
+        areaError.textContent = '';
+        updateAreaPresets();
+        areaOverlay.style.display = 'flex';
+        areaInput.focus();
+        areaInput.select();
+    }
+
+    // Закрытие диалога (Отмена, ✕, Esc, клик мимо) ничего не меняет:
+    // уже заданная область остаётся как была.
+    function closeSearchAreaDialog() {
+        areaOverlay.style.display = 'none';
+        pendingAreaCenter = null;
+    }
+
+    function updateSearchAreaChip() {
+        if (!searchArea) {
+            areaChip.style.display = 'none';
+            return;
+        }
+        document.getElementById('search-area-chip-text').textContent =
+            `Область: ${formatDistance(searchArea.radiusM)} · ${searchArea.label}`;
+        areaChip.style.display = 'flex';
+    }
+
+    function drawSearchArea() {
+        if (searchAreaLayer) map.removeLayer(searchAreaLayer);
+        const style = { color: '#e67e22', weight: 2, interactive: false };
+        const circle = L.circle(searchArea.center, { ...style, radius: searchArea.radiusM, fillColor: '#e67e22', fillOpacity: 0.08 });
+        const dot = L.circleMarker(searchArea.center, { ...style, radius: 4, fillColor: '#e67e22', fillOpacity: 1 });
+        searchAreaLayer = L.featureGroup([circle, dot]).addTo(map);
+    }
+
+    function setSearchArea(center, radiusM, label) {
+        searchArea = { center, radiusM, label };
+        drawSearchArea();
+        updateSearchAreaChip();
+        applyFilters();
+        // Показываем результат: раскрываем панель на списке и вписываем круг в карту.
+        setSearchPanelCollapsed(false);
+        showView('results');
+        map.fitBounds(searchAreaLayer.getBounds(), { padding: [30, 30] });
+    }
+
+    function clearSearchArea() {
+        if (!searchArea) return;
+        searchArea = null;
+        if (searchAreaLayer) {
+            map.removeLayer(searchAreaLayer);
+            searchAreaLayer = null;
+        }
+        updateSearchAreaChip();
+        applyFilters();
+    }
+
+    document.querySelector('[data-action="area-set"]').addEventListener('click', () => {
+        if (!contextMenuLatLng) return;
+        const center = contextMenuLatLng;
+        const label = contextMenuLabel || contextMenuPointLabel(center);
+        closeMapContextMenu();
+        openSearchAreaDialog(center, label);
+    });
+    document.querySelector('[data-action="area-clear"]').addEventListener('click', () => {
+        closeMapContextMenu();
+        clearSearchArea();
+    });
+
+    areaForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const km = Number(areaInput.value.trim().replace(',', '.'));
+        if (!areaInput.value.trim() || !Number.isFinite(km) || km < 0.1 || km > MAX_AREA_KM) {
+            areaError.textContent = `Введите расстояние от 0,1 до ${MAX_AREA_KM} км`;
+            return;
+        }
+        setSearchArea(pendingAreaCenter, km * 1000, pendingAreaLabel);
+        closeSearchAreaDialog();
+    });
+    areaInput.addEventListener('input', () => {
+        areaError.textContent = '';
+        updateAreaPresets();
+    });
+    document.querySelectorAll('.search-area-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            areaInput.value = String(btn.dataset.km).replace('.', ',');
+            areaError.textContent = '';
+            updateAreaPresets();
+        });
+    });
+    document.getElementById('search-area-cancel').addEventListener('click', closeSearchAreaDialog);
+    document.getElementById('search-area-close').addEventListener('click', closeSearchAreaDialog);
+    areaOverlay.addEventListener('click', (e) => {
+        if (e.target === areaOverlay) closeSearchAreaDialog();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeSearchAreaDialog();
+    });
+
+    // Плашка над результатами: клик по тексту — изменить радиус, ✕ — убрать область
+    document.getElementById('search-area-chip-edit').addEventListener('click', () => {
+        if (searchArea) openSearchAreaDialog(searchArea.center, searchArea.label);
+    });
+    document.getElementById('search-area-chip-clear').addEventListener('click', clearSearchArea);
 
     // --- Строка поиска: ввод текста и кнопка очистки ---
     const searchTextInput = document.getElementById('search-text');
