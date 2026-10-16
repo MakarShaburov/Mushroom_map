@@ -572,13 +572,21 @@
     }
     .spot-card-tabs {
         display: flex;
-        gap: 18px;
+        gap: 16px;
         border-bottom: 1px solid var(--border);
         margin-bottom: 14px;
+        /* четыре вкладки в узкой панели не помещаются — прокручиваем, а не переносим */
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    .spot-card-tabs::-webkit-scrollbar {
+        display: none;
     }
     .spot-tab-btn {
         display: flex;
         align-items: center;
+        flex-shrink: 0;
+        white-space: nowrap;
         gap: 6px;
         border: none;
         background: none;
@@ -1063,6 +1071,82 @@
         color: #fff;
     }
     /* --- Статус места и отчёты грибников --- */
+    /* --- Цветные метки, вкладка «Отчёты», секции фильтра --- */
+    .spot-marker-icon {
+        background: none;
+        border: none;
+    }
+    .spot-marker-icon svg {
+        display: block;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+    }
+    .filter-section-title {
+        margin: 14px 0 6px;
+        color: var(--muted);
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+    .status-legend {
+        margin: 0 0 8px;
+        padding: 0;
+        list-style: none;
+        font-size: 0.9em;
+    }
+    .status-legend li {
+        display: flex;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .spot-reports-all {
+        margin-top: 6px;
+        padding: 0;
+        border: none;
+        background: none;
+        color: var(--link);
+        font: inherit;
+        font-size: 0.9em;
+        cursor: pointer;
+    }
+    .spot-reports-filter {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+    .spot-reports-chip {
+        padding: 5px 12px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: none;
+        color: var(--text);
+        font: inherit;
+        font-size: 0.85em;
+        cursor: pointer;
+    }
+    .spot-reports-chip span {
+        color: var(--muted);
+    }
+    .spot-reports-chip.active {
+        border-color: var(--link);
+        color: var(--link);
+    }
+    .spot-reports-load-more {
+        display: block;
+        width: 100%;
+        margin-top: 10px;
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: none;
+        color: var(--link);
+        font: inherit;
+        font-size: 0.9em;
+        cursor: pointer;
+    }
+    .spot-reports-load-more:disabled {
+        opacity: 0.6;
+        cursor: default;
+    }
     .status-dot {
         display: inline-block;
         width: 9px;
@@ -1672,6 +1756,16 @@
                     </div>
                     <button type="button" id="filters-close" class="filters-close-btn" title="Закрыть фильтры">✕</button>
                 </div>
+                <p class="filter-section-title">Находили грибы</p>
+                <div id="search-recent">
+                    <label class="filter-checkbox-row"><input type="radio" name="recent" value="" checked> Не важно</label>
+                    <label class="filter-checkbox-row"><input type="radio" name="recent" value="0"> Сегодня</label>
+                    <label class="filter-checkbox-row"><input type="radio" name="recent" value="3"> За последние 3 дня</label>
+                    <label class="filter-checkbox-row"><input type="radio" name="recent" value="7"> За последнюю неделю</label>
+                    <label class="filter-checkbox-row"><input type="radio" name="recent" value="30"> За последний месяц</label>
+                </div>
+
+                <p class="filter-section-title">Виды грибов</p>
                 <div id="search-types">
                     {% for group in mushroom_groups %}
                         <div class="type-group" data-group="{{ group.code }}">
@@ -1693,6 +1787,15 @@
                         </div>
                     {% endfor %}
                 </div>
+
+                <p class="filter-section-title">Цвет метки на карте — статус места</p>
+                <ul class="status-legend">
+                    <li><span class="status-dot status-today"></span> Сегодня находили грибы</li>
+                    <li><span class="status-dot status-recent"></span> Находили в последние 7 дней</li>
+                    <li><span class="status-dot status-old"></span> Находили 8–30 дней назад</li>
+                    <li><span class="status-dot status-empty"></span> Последний отчёт: грибов не нашли</li>
+                    <li><span class="status-dot status-no_data"></span> Свежих данных пока нет</li>
+                </ul>
             </div>
 
             <div id="search-route-view" style="display: none;">
@@ -2075,24 +2178,6 @@
     function bindSpotCardActions(content) {
         const spotCardEl = content.querySelector('.spot-card');
 
-        // Отчёты грибников: открыть форму, удалить свой отчёт, показать все
-        const reportOpenBtn = content.querySelector('.spot-report-open');
-        if (reportOpenBtn) {
-            reportOpenBtn.addEventListener('click', () => openReportModal(spotCardEl.dataset.spotId));
-        }
-        content.querySelectorAll('.spot-report-delete').forEach((btn) => {
-            btn.addEventListener('click', () => deleteSpotReport(btn.dataset.deleteUrl));
-        });
-        const reportsMoreBtn = content.querySelector('.spot-reports-more');
-        if (reportsMoreBtn) {
-            reportsMoreBtn.addEventListener('click', () => {
-                const expanded = reportsMoreBtn.dataset.expanded === '1';
-                content.querySelectorAll('[data-report-extra]').forEach((row) => { row.hidden = expanded; });
-                reportsMoreBtn.dataset.expanded = expanded ? '0' : '1';
-                reportsMoreBtn.textContent = expanded ? `Показать все (${reportsMoreBtn.dataset.total})` : 'Свернуть';
-            });
-        }
-
         const routeBtn = content.querySelector('.spot-card-route-btn');
         if (routeBtn) {
             routeBtn.addEventListener('click', () => {
@@ -2127,7 +2212,9 @@
                 // На вкладках "Фото" и "Комментарии" панель поиска шире —
                 // фото нужно место для превью в ряд, комментариям это тоже
                 // идёт на пользу (меньше переносов строк, видно больше сразу).
-                setSearchPanelWide(tab === 'photos' || tab === 'comments');
+                setSearchPanelWide(tab === 'photos' || tab === 'comments' || tab === 'reports');
+                // История отчётов подгружается при первом открытии вкладки
+                if (tab === 'reports') loadReportsTab(content.querySelector('.spot-reports-tab-body'), 'all', false);
             });
         });
 
@@ -2275,6 +2362,70 @@
     document.getElementById('spot-card-content').addEventListener('click', (e) => {
         const link = e.target.closest('[data-user-open]');
         if (link) openUserCard(link.dataset.userOpen, link.dataset.userCardUrl);
+    });
+
+
+    // --- Отчёты в карточке места ---
+    // Загрузка вкладки «Отчёты» (kind: all / found / none). Без force повторно
+    // не грузим: вкладка уже заполнена.
+    function loadReportsTab(body, kind, force) {
+        if (!body || (!force && body.dataset.loaded === '1')) return;
+        fetch(`${body.dataset.url}?kind=${kind}`)
+            .then((res) => {
+                if (!res.ok) throw new Error('request failed');
+                return res.text();
+            })
+            .then((html) => {
+                body.innerHTML = html;
+                body.dataset.loaded = '1';
+            })
+            .catch(() => {
+                body.innerHTML = '<p class="spot-card-empty">Не удалось загрузить отчёты. Откройте вкладку ещё раз.</p>';
+                body.dataset.loaded = '0';
+            });
+    }
+
+    function loadMoreReports(btn) {
+        const body = btn.closest('.spot-reports-tab-body');
+        btn.disabled = true;
+        fetch(`${body.dataset.url}?kind=${btn.dataset.kind}&append=1&offset=${btn.dataset.nextOffset}`)
+            .then((res) => {
+                if (!res.ok) throw new Error('request failed');
+                return res.text();
+            })
+            .then((html) => {
+                const list = btn.parentElement;
+                btn.remove();
+                list.insertAdjacentHTML('beforeend', html);
+            })
+            .catch(() => { btn.disabled = false; });
+    }
+
+    // Один обработчик на контейнер карточки (он не пересоздаётся): работает и для
+    // строк, подгруженных во вкладке позже.
+    document.getElementById('spot-card-content').addEventListener('click', (e) => {
+        const openBtn = e.target.closest('.spot-report-open');
+        if (openBtn) {
+            openReportModal(openBtn.closest('.spot-card').dataset.spotId);
+            return;
+        }
+        const deleteBtn = e.target.closest('.spot-report-delete');
+        if (deleteBtn) {
+            deleteSpotReport(deleteBtn.dataset.deleteUrl);
+            return;
+        }
+        const allBtn = e.target.closest('.spot-reports-all');
+        if (allBtn) {
+            allBtn.closest('.spot-card').querySelector('.spot-tab-btn[data-spot-tab="reports"]').click();
+            return;
+        }
+        const chip = e.target.closest('[data-reports-kind]');
+        if (chip) {
+            loadReportsTab(chip.closest('.spot-reports-tab-body'), chip.dataset.reportsKind, true);
+            return;
+        }
+        const moreBtn = e.target.closest('.spot-reports-load-more');
+        if (moreBtn) loadMoreReports(moreBtn);
     });
 
     function postUserAction(url, data) {
@@ -2496,6 +2647,26 @@
         return Array.from(document.querySelectorAll('.type-checkbox:checked')).map(cb => cb.value);
     }
 
+    // Цвета статусов — те же, что у точек в списке (см. .status-* в CSS).
+    const STATUS_COLORS = {
+        today: '#3fb950', recent: '#8bc34a', old: '#e6a23c', empty: '#e5534b', no_data: '#8b949e',
+    };
+
+    // Метка места в форме булавки, цвет которой показывает статус по отчётам.
+    function buildSpotIcon(statusCode) {
+        const color = STATUS_COLORS[statusCode] || STATUS_COLORS.no_data;
+        return L.divIcon({
+            className: 'spot-marker-icon',
+            html: '<svg width="28" height="38" viewBox="0 0 28 38" xmlns="http://www.w3.org/2000/svg">' +
+                  '<path d="M14 1C7 1 1.5 6.5 1.5 13.4c0 9.3 12.5 23.6 12.5 23.6s12.5-14.3 12.5-23.6C26.5 6.5 21 1 14 1z" ' +
+                  `fill="${color}" stroke="#ffffff" stroke-width="1.5"/>` +
+                  '<circle cx="14" cy="13.5" r="4.5" fill="#ffffff"/></svg>',
+            iconSize: [28, 38],
+            iconAnchor: [14, 37],
+            tooltipAnchor: [16, -26],
+        });
+    }
+
     // Статус места (по отчётам грибников): цветная точка и подпись — в списке
     // поиска и во всплывающей подсказке метки. textContent — на всякий случай.
     function buildStatusLine(status, className) {
@@ -2556,9 +2727,16 @@
         return searchArea.center.distanceTo(L.latLng(spot.latitude, spot.longitude)) <= searchArea.radiusM;
     }
 
+    // «Находили грибы»: null — не важно, иначе число дней (0 — только сегодня)
+    function getRecentDays() {
+        const checked = document.querySelector('#search-recent input[name="recent"]:checked');
+        return checked && checked.value !== '' ? Number(checked.value) : null;
+    }
+
     function applyFilters() {
         const text = document.getElementById('search-text').value.trim().toLowerCase();
         const selectedTypes = getSelectedTypes();
+        const recentDays = getRecentDays();
         let visibleCount = 0;
         const resultsBox = document.getElementById('search-results');
         resultsBox.innerHTML = '';
@@ -2569,7 +2747,12 @@
             const matchesTypes = selectedTypes.length === 0 ||
                 entry.data.mushroom_types.some(t => selectedTypes.includes(t));
             const matchesArea = spotInSearchArea(entry.data);
-            const visible = matchesText && matchesTypes && matchesArea;
+            // Смотрим на сами находки: даже если позже кто-то написал «не нашёл»,
+            // место попадёт в выборку, если грибы находили не раньше чем N дней назад.
+            const lastFound = entry.data.last_found_days;
+            const matchesRecent = recentDays === null ||
+                (lastFound !== null && lastFound !== undefined && lastFound <= recentDays);
+            const visible = matchesText && matchesTypes && matchesArea && matchesRecent;
 
             if (visible) {
                 if (!map.hasLayer(entry.marker)) entry.marker.addTo(map);
@@ -2615,14 +2798,16 @@
         }
 
         document.getElementById('search-count').textContent = `Найдено мест: ${visibleCount}`;
-        document.getElementById('search-filter-toggle').classList.toggle('active', selectedTypes.length > 0);
+        document.getElementById('search-filter-toggle').classList.toggle('active', selectedTypes.length > 0 || recentDays !== null);
     }
 
     fetch("{% url 'spots:spots_api' %}")
         .then(response => response.json())
         .then(data => {
             data.spots.forEach(spot => {
-                const marker = L.marker([spot.latitude, spot.longitude]).addTo(map);
+                const marker = L.marker([spot.latitude, spot.longitude], {
+                    icon: buildSpotIcon(spot.status ? spot.status.code : 'no_data'),
+                }).addTo(map);
                 marker.bindTooltip(buildSpotTooltip(spot));
                 marker.on('click', () => {
                     if (routePickingField) {
@@ -2708,6 +2893,7 @@
     filtersReset.addEventListener('click', (e) => {
         e.preventDefault();
         document.querySelectorAll('.type-checkbox:checked').forEach(cb => { cb.checked = false; });
+        document.querySelector('#search-recent input[name="recent"][value=""]').checked = true;
         updateAllTypeGroups();
         applyFilters();
     });
@@ -3052,6 +3238,7 @@
     });
 
     document.getElementById('search-types').addEventListener('change', applyFilters);
+    document.getElementById('search-recent').addEventListener('change', applyFilters);
 
     // --- Категории видов в фильтре: раскрытие, «выбрать всю категорию», счётчик ---
     // Состояние категории выводится из отмеченных видов: все — галочка,
@@ -3297,14 +3484,21 @@
     // в списке поиска и в подсказке метки.
     function applySpotCardHtml(html) {
         const content = document.getElementById('spot-card-content');
+        // Карточка перерисовывается целиком — запоминаем открытую вкладку и возвращаемся на неё
+        const activeTab = content.querySelector('.spot-tab-btn.active')?.dataset.spotTab;
         content.innerHTML = html;
         startSpotCardCarousel(content);
         bindSpotCardActions(content);
         const card = content.querySelector('.spot-card');
         if (!card) return;
+        if (activeTab && activeTab !== 'overview') {
+            content.querySelector(`.spot-tab-btn[data-spot-tab="${activeTab}"]`)?.click();
+        }
         const entry = allSpots.find((e) => String(e.data.id) === card.dataset.spotId);
         if (entry) {
             entry.data.status = { code: card.dataset.statusCode, label: card.dataset.statusLabel };
+            entry.data.last_found_days = card.dataset.lastFoundDays === '' ? null : Number(card.dataset.lastFoundDays);
+            entry.marker.setIcon(buildSpotIcon(card.dataset.statusCode));
             entry.marker.setTooltipContent(buildSpotTooltip(entry.data));
             applyFilters();
         }

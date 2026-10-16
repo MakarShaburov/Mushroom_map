@@ -1,0 +1,8 @@
+<div class="spot-reports-filter">
+    <button type="button" class="spot-reports-chip{% if kind == 'all' %} active{% endif %}" data-reports-kind="all">Все <span>{{ counts.total }}</span></button>
+    <button type="button" class="spot-reports-chip{% if kind == 'found' %} active{% endif %}" data-reports-kind="found">Находили <span>{{ counts.found }}</span></button>
+    <button type="button" class="spot-reports-chip{% if kind == 'none' %} active{% endif %}" data-reports-kind="none">Не находили <span>{{ counts.none }}</span></button>
+</div>
+<div class="spot-reports-list">
+    {% include 'spots/_report_rows.html' %}
+</div>

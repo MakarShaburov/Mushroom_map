@@ -9,6 +9,7 @@
     data-spot-my-score="{{ my_score }}"
     data-status-code="{{ status.code }}"
     data-status-label="{{ status.label }}"
+    data-last-found-days="{{ status.last_found_days|default_if_none:'' }}"
 >
     {% if spot_photos %}
         <div class="spot-card-photos">
@@ -70,6 +71,7 @@
         <button type="button" class="spot-tab-btn active" data-spot-tab="overview">Обзор</button>
         <button type="button" class="spot-tab-btn" data-spot-tab="photos">Фото <span class="spot-tab-badge">{{ photos_count }}</span></button>
         <button type="button" class="spot-tab-btn" data-spot-tab="comments">Комментарии <span class="spot-tab-badge">{{ comments|length }}</span></button>
+        <button type="button" class="spot-tab-btn" data-spot-tab="reports">Отчёты <span class="spot-tab-badge">{{ reports_total }}</span></button>
     </div>
 
     <div class="spot-tab-panel" data-spot-tab-panel="overview">
@@ -86,31 +88,14 @@
         </div>
 
         <div class="spot-reports">
-            <div class="spot-reports-title"><strong>Отчёты грибников</strong> <span class="spot-tab-badge">{{ reports_total }}</span></div>
-            {% for report in reports %}
-                <div class="spot-report-row"{% if forloop.counter > 3 %} hidden data-report-extra{% endif %}>
-                    <div class="spot-report-head">
-                        <span class="spot-report-result spot-report-result-{{ report.result }}">{{ report.icon }} {{ report.get_result_display }}</span>
-                        <span class="spot-report-date">{{ report.visited_on|date:"d.m.Y" }}</span>
-                    </div>
-                    {% with types=report.types.all %}
-                        {% if types %}
-                            <div class="spot-report-types">{% for type in types %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
-                        {% endif %}
-                    {% endwith %}
-                    {% if report.note %}<p class="spot-report-note">{{ report.note }}</p>{% endif %}
-                    <div class="spot-report-foot">
-                        <span class="spot-report-author user-link" data-user-open="{{ report.author.username }}" data-user-card-url="{% url 'accounts:user_card' report.author.username %}">{{ report.author.username }}</span>
-                        {% if report.can_delete %}
-                            <button type="button" class="spot-report-delete" data-delete-url="{% url 'spots:spot_report_delete' report.pk %}">Удалить</button>
-                        {% endif %}
-                    </div>
-                </div>
+            <div class="spot-reports-title"><strong>Последние отчёты</strong> <span class="spot-tab-badge">{{ reports_total }}</span></div>
+            {% for report in reports|slice:":3" %}
+                {% include 'spots/_report_row.html' %}
             {% empty %}
                 <p class="spot-card-empty">Отчётов пока нет. Побывали здесь — расскажите!</p>
             {% endfor %}
-            {% if reports|length > 3 %}
-                <button type="button" class="spot-reports-more" data-total="{{ reports|length }}">Показать все ({{ reports|length }})</button>
+            {% if reports_total > 3 %}
+                <button type="button" class="spot-reports-all">История отчётов ({{ reports_total }}) →</button>
             {% endif %}
         </div>
 
@@ -271,6 +256,12 @@
             {% empty %}
                 <p class="spot-card-empty">Отзывов пока нет — станьте первым.</p>
             {% endfor %}
+        </div>
+    </div>
+
+    <div class="spot-tab-panel" data-spot-tab-panel="reports" style="display: none;">
+        <div class="spot-reports-tab-body" data-url="{% url 'spots:spot_reports_page' spot.pk %}">
+            <p class="spot-card-empty">Загрузка…</p>
         </div>
     </div>
 

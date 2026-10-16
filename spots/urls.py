@@ -14,6 +14,7 @@ urlpatterns = [
     path('spots/<int:pk>/review/', views.spot_review_create, name='spot_review_create'),
     path('spots/<int:pk>/report/form/', views.spot_report_form, name='spot_report_form'),
     path('spots/<int:pk>/reports/new/', views.spot_report_create, name='spot_report_create'),
+    path('spots/<int:pk>/reports/', views.spot_reports_page, name='spot_reports_page'),
     path('spots/reports/<int:report_id>/delete/', views.spot_report_delete, name='spot_report_delete'),
     path('photos/like/', views.photo_like_toggle, name='photo_like_toggle'),
     path('spots/<int:pk>/comments/', views.spot_comment_create, name='spot_comment_create'),

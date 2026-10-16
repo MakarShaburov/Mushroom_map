@@ -1,0 +1,18 @@
+<div class="spot-report-row">
+    <div class="spot-report-head">
+        <span class="spot-report-result spot-report-result-{{ report.result }}">{{ report.icon }} {{ report.get_result_display }}</span>
+        <span class="spot-report-date">{{ report.visited_on|date:"d.m.Y" }}</span>
+    </div>
+    {% with types=report.types.all %}
+        {% if types %}
+            <div class="spot-report-types">{% for type in types %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+        {% endif %}
+    {% endwith %}
+    {% if report.note %}<p class="spot-report-note">{{ report.note }}</p>{% endif %}
+    <div class="spot-report-foot">
+        <span class="spot-report-author user-link" data-user-open="{{ report.author.username }}" data-user-card-url="{% url 'accounts:user_card' report.author.username %}">{{ report.author.username }}</span>
+        {% if report.can_delete %}
+            <button type="button" class="spot-report-delete" data-delete-url="{% url 'spots:spot_report_delete' report.pk %}">Удалить</button>
+        {% endif %}
+    </div>
+</div>

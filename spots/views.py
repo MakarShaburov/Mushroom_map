@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, Prefetch
+from django.db.models import Count, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -12,13 +12,14 @@ from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
     SpotComment, SpotPhoto, SpotRating, SpotReport,
 )
-from .status import STATUS_WINDOW_DAYS, compute_spot_status
+from .status import FOUND_RESULTS, STATUS_WINDOW_DAYS, compute_spot_status
 from .utils import ru_plural
 
 PANEL_HEADER = 'X-Panel-Request'
 PHOTO_LIKE_MODELS = {'spot': SpotPhoto, 'comment_photo': CommentPhoto}
 MAX_COMMENT_PHOTOS = 10
 REPORTS_IN_CARD = 50          # сколько последних отчётов выводим в карточке места
+REPORTS_PAGE_SIZE = 20        # отчётов за раз во вкладке «Отчёты»
 REPORT_NOTE_MAX = 300
 REPORT_MAX_BACKDATE_DAYS = STATUS_WINDOW_DAYS  # отчёт можно внести задним числом не глубже
 REPORT_RESULT_ICONS = {'plenty': '🍄', 'some': '🧺', 'none': '🚫'}
@@ -45,6 +46,15 @@ def mushroom_groups():
     if uncategorized:
         groups.append({'code': 'uncategorized', 'name': 'Без категории', 'types': uncategorized})
     return groups
+
+
+def _decorate_reports(request, reports):
+    """Добавляет к отчётам то, что нужно шаблону: значок результата и право удаления."""
+    for report in reports:
+        report.icon = REPORT_RESULT_ICONS.get(report.result, '')
+        report.can_delete = request.user.is_authenticated and (
+            report.author_id == request.user.pk or request.user.is_staff
+        )
 
 
 def group_types_by_category(types):
@@ -86,6 +96,7 @@ def spots_api(request):
             'mushroom_types_names': [t.name for t in types],
             'mushroom_types_label': ', '.join(t.name for t in types) or '—',
             'status': {'code': status.code, 'label': status.label},
+            'last_found_days': status.last_found_days,
             'latitude': spot.latitude,
             'longitude': spot.longitude,
             'average_rating': spot.average_rating,
@@ -193,11 +204,7 @@ def _spot_card_context(request, spot):
 
     # Отчёты грибников и статус места
     reports = list(spot.reports.select_related('author').prefetch_related('types')[:REPORTS_IN_CARD])
-    for report in reports:
-        report.icon = REPORT_RESULT_ICONS.get(report.result, '')
-        report.can_delete = request.user.is_authenticated and (
-            report.author_id == request.user.pk or request.user.is_staff
-        )
+    _decorate_reports(request, reports)
 
     return {
         'spot': spot,
@@ -317,6 +324,52 @@ def spot_report_create(request, pk):
         report.types.set(MushroomType.objects.filter(pk__in=type_ids))
 
     return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
+
+
+def spot_reports_page(request, pk):
+    """История отчётов о месте (вкладка «Отчёты»), порциями по REPORTS_PAGE_SIZE.
+
+    ?kind=all|found|none — какие отчёты показывать, ?offset=N — с какого по счёту.
+    Обычный запрос возвращает всю вкладку (фильтр-«чипы» с числами + список);
+    с ?append=1 — только следующие строки списка для «Показать ещё».
+    Открыт для всех, как и сами отчёты в карточке."""
+    spot = get_object_or_404(MushroomSpot, pk=pk)
+    kind = request.GET.get('kind', 'all')
+    if kind not in ('all', 'found', 'none'):
+        kind = 'all'
+    try:
+        offset = max(0, int(request.GET.get('offset', 0)))
+    except ValueError:
+        offset = 0
+
+    queryset = spot.reports.select_related('author').prefetch_related('types')
+    if kind == 'found':
+        queryset = queryset.filter(result__in=FOUND_RESULTS)
+    elif kind == 'none':
+        queryset = queryset.filter(result=SpotReport.Result.NONE)
+
+    # Берём на один отчёт больше страницы — так видно, есть ли что показывать дальше.
+    reports = list(queryset[offset:offset + REPORTS_PAGE_SIZE + 1])
+    has_more = len(reports) > REPORTS_PAGE_SIZE
+    reports = reports[:REPORTS_PAGE_SIZE]
+    _decorate_reports(request, reports)
+
+    context = {
+        'spot': spot,
+        'reports': reports,
+        'kind': kind,
+        'next_offset': offset + REPORTS_PAGE_SIZE if has_more else None,
+    }
+    if request.GET.get('append') == '1':
+        return render(request, 'spots/_report_rows.html', context)
+
+    counts = spot.reports.aggregate(
+        total=Count('id'),
+        found=Count('id', filter=Q(result__in=FOUND_RESULTS)),
+        none=Count('id', filter=Q(result=SpotReport.Result.NONE)),
+    )
+    context['counts'] = counts
+    return render(request, 'spots/_reports_tab.html', context)
 
 
 @login_required

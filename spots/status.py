@@ -40,6 +40,10 @@ class SpotStatus:
     days_ago: Optional[int] = None          # дней с последнего отчёта в окне
     last_report_date: Optional[date] = None  # дата самого свежего отчёта вообще
     recent_count: int = 0                    # отчётов за окно
+    # Сколько дней назад в последний раз КТО-ТО нашёл грибы (в пределах окна);
+    # None — находок в окне нет. Нужна для фильтра «находили за последние N дней»:
+    # он смотрит именно на находки, даже если позже кто-то написал «не нашёл».
+    last_found_days: Optional[int] = None
 
 
 def _sort_key(report):
@@ -61,7 +65,10 @@ def compute_spot_status(reports, today=None):
     window_start = today - timedelta(days=STATUS_WINDOW_DAYS)
     recent = [r for r in reports if window_start <= r.visited_on <= today]
     if not recent:
-        return SpotStatus(NO_DATA, 'Свежих данных пока нет', None, last_report_date, 0)
+        return SpotStatus(NO_DATA, 'Свежих данных пока нет', None, last_report_date, 0, None)
+
+    found_dates = [r.visited_on for r in recent if r.result in FOUND_RESULTS]
+    last_found_days = (today - max(found_dates)).days if found_dates else None
 
     latest = max(recent, key=_sort_key)
     days = (today - latest.visited_on).days
@@ -87,4 +94,4 @@ def compute_spot_status(reports, today=None):
             label = 'Не находили более недели'
         code = EMPTY
 
-    return SpotStatus(code, label, days, last_report_date, len(recent))
+    return SpotStatus(code, label, days, last_report_date, len(recent), last_found_days)
