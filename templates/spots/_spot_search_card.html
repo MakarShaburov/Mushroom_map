@@ -67,11 +67,15 @@
     </div>
     <p class="spot-card-coords" style="display: none;">{{ spot.latitude|unlocalize }}, {{ spot.longitude|unlocalize }}</p>
 
-    <div class="spot-card-tabs">
-        <button type="button" class="spot-tab-btn active" data-spot-tab="overview">Обзор</button>
-        <button type="button" class="spot-tab-btn" data-spot-tab="photos">Фото <span class="spot-tab-badge">{{ photos_count }}</span></button>
-        <button type="button" class="spot-tab-btn" data-spot-tab="comments">Комментарии <span class="spot-tab-badge">{{ comments|length }}</span></button>
-        <button type="button" class="spot-tab-btn" data-spot-tab="reports">Отчёты <span class="spot-tab-badge">{{ reports_total }}</span></button>
+    <div class="spot-tabs-wrap">
+        <button type="button" class="spot-tabs-arrow spot-tabs-arrow-left" aria-label="Вкладки влево" tabindex="-1">‹</button>
+        <div class="spot-card-tabs">
+            <button type="button" class="spot-tab-btn active" data-spot-tab="overview">Обзор</button>
+            <button type="button" class="spot-tab-btn" data-spot-tab="photos">Фото <span class="spot-tab-badge">{{ photos_count }}</span></button>
+            <button type="button" class="spot-tab-btn" data-spot-tab="comments">Комментарии <span class="spot-tab-badge">{{ comments|length }}</span></button>
+            <button type="button" class="spot-tab-btn" data-spot-tab="reports">Отчёты <span class="spot-tab-badge">{{ reports_total }}</span></button>
+        </div>
+        <button type="button" class="spot-tabs-arrow spot-tabs-arrow-right" aria-label="Вкладки вправо" tabindex="-1">›</button>
     </div>
 
     <div class="spot-tab-panel" data-spot-tab-panel="overview">

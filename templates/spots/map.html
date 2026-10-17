@@ -571,8 +571,9 @@
         margin: 0 0 12px;
     }
     .spot-card-tabs {
+        position: relative;
         display: flex;
-        gap: 16px;
+        gap: 12px;
         border-bottom: 1px solid var(--border);
         margin-bottom: 14px;
         /* четыре вкладки в узкой панели не помещаются — прокручиваем, а не переносим */
@@ -581,6 +582,77 @@
     }
     .spot-card-tabs::-webkit-scrollbar {
         display: none;
+    }
+    /* --- Прокрутка вкладок карточки стрелками (как в Яндекс Картах) --- */
+    .spot-tabs-wrap {
+        position: relative;
+    }
+    .spot-tabs-arrow {
+        position: absolute;
+        top: -3px;
+        z-index: 2;
+        width: 28px;
+        height: 28px;
+        padding: 0 0 2px;
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        background: var(--panel-bg);
+        color: var(--text);
+        font-size: 18px;
+        line-height: 1;
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+        cursor: pointer;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+    }
+    .spot-tabs-arrow-left { left: 0; }
+    .spot-tabs-arrow-right { right: 0; }
+    .spot-tabs-arrow:hover {
+        border-color: var(--link);
+    }
+    /* Затемнение у края появляется вместе со стрелкой (линию под вкладками не закрывает) */
+    .spot-tabs-wrap::before,
+    .spot-tabs-wrap::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 1px;
+        width: 44px;
+        z-index: 1;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+    .spot-tabs-wrap::before {
+        left: 0;
+        background: linear-gradient(to right, var(--panel-bg) 25%, transparent);
+    }
+    .spot-tabs-wrap::after {
+        right: 0;
+        background: linear-gradient(to left, var(--panel-bg) 25%, transparent);
+    }
+    /* Стрелка появляется, пока мышь над вкладками, и исчезает, когда мышь ушла */
+    .spot-tabs-wrap.can-scroll-left:hover::before,
+    .spot-tabs-wrap.can-scroll-right:hover::after {
+        opacity: 1;
+    }
+    .spot-tabs-wrap.can-scroll-left:hover .spot-tabs-arrow-left,
+    .spot-tabs-wrap.can-scroll-right:hover .spot-tabs-arrow-right {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    /* На сенсорных экранах наведения нет — стрелки видны всегда, пока есть куда листать */
+    @media (hover: none) {
+        .spot-tabs-wrap.can-scroll-left::before,
+        .spot-tabs-wrap.can-scroll-right::after {
+            opacity: 1;
+        }
+        .spot-tabs-wrap.can-scroll-left .spot-tabs-arrow-left,
+        .spot-tabs-wrap.can-scroll-right .spot-tabs-arrow-right {
+            opacity: 1;
+            pointer-events: auto;
+        }
     }
     .spot-tab-btn {
         display: flex;
@@ -2175,6 +2247,43 @@
             });
     }
 
+    // --- Прокрутка вкладок карточки места ---
+    // Если вкладки не помещаются в панель, по краям появляются стрелки (их показ при
+    // наведении — в CSS); здесь только следим, есть ли куда листать, и листаем.
+    function initSpotTabsScroller(content) {
+        const wrap = content.querySelector('.spot-tabs-wrap');
+        if (!wrap) return;
+        const bar = wrap.querySelector('.spot-card-tabs');
+        const update = () => {
+            const max = bar.scrollWidth - bar.clientWidth;
+            wrap.classList.toggle('can-scroll-left', bar.scrollLeft > 1);
+            wrap.classList.toggle('can-scroll-right', bar.scrollLeft < max - 1);
+        };
+        const step = () => Math.max(120, Math.round(bar.clientWidth * 0.6));
+        wrap.querySelector('.spot-tabs-arrow-left').addEventListener('click', () => {
+            bar.scrollBy({ left: -step(), behavior: 'smooth' });
+        });
+        wrap.querySelector('.spot-tabs-arrow-right').addEventListener('click', () => {
+            bar.scrollBy({ left: step(), behavior: 'smooth' });
+        });
+        bar.addEventListener('scroll', update, { passive: true });
+        // Ширина панели меняется (узкая ↔ широкая) — пересчитываем
+        if (typeof ResizeObserver !== 'undefined') new ResizeObserver(update).observe(bar);
+        update();
+    }
+
+    // Открытая вкладка не должна оставаться за краем: подвигаем ряд так, чтобы она была видна.
+    function revealSpotTab(bar, btn) {
+        const edge = 36; // место под стрелку и затемнение у края
+        const left = btn.offsetLeft;
+        const right = left + btn.offsetWidth;
+        if (left < bar.scrollLeft + edge) {
+            bar.scrollTo({ left: Math.max(0, left - edge), behavior: 'smooth' });
+        } else if (right > bar.scrollLeft + bar.clientWidth - edge) {
+            bar.scrollTo({ left: right - bar.clientWidth + edge, behavior: 'smooth' });
+        }
+    }
+
     function bindSpotCardActions(content) {
         const spotCardEl = content.querySelector('.spot-card');
 
@@ -2215,8 +2324,10 @@
                 setSearchPanelWide(tab === 'photos' || tab === 'comments' || tab === 'reports');
                 // История отчётов подгружается при первом открытии вкладки
                 if (tab === 'reports') loadReportsTab(content.querySelector('.spot-reports-tab-body'), 'all', false);
+                revealSpotTab(btn.parentElement, btn);
             });
         });
+        initSpotTabsScroller(content);
 
         // --- Лайк/дизлайк под комментариями ---
         content.querySelectorAll('.spot-comment-vote-btn').forEach((btn) => {
