@@ -39,6 +39,23 @@ class MushroomType(models.Model):
         related_name='types',
         verbose_name='Категория',
     )
+    # Поля справочника. Все необязательные: существующие виды остаются
+    # валидными, тексты заполняются позже и проверяются человеком.
+    latin_name = models.CharField('Латинское название', max_length=150, blank=True)
+    description = models.TextField('Описание', blank=True)
+    habitat = models.TextField('Где и когда растёт', blank=True)
+    lookalikes = models.TextField('Похожие виды (двойники)', blank=True)
+    sources = models.TextField(
+        'Источники', blank=True,
+        help_text='По одной ссылке или названию источника на строку.',
+    )
+    # Съедобность и безопасность людей зависят от текстов, поэтому
+    # неподтверждённые черновики клиенту не показываем как факт.
+    is_verified = models.BooleanField(
+        'Проверено', default=False,
+        help_text='Тексты сверены с источниками. Пока не отмечено, '
+                  'справочная карточка показывается как черновик.',
+    )
 
     class Meta:
         verbose_name = 'Вид гриба'

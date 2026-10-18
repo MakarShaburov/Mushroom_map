@@ -19,10 +19,16 @@ class MushroomCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(MushroomType)
 class MushroomTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'category')
-    list_filter = ('category',)
-    search_fields = ('name', 'code')
+    list_display = ('name', 'latin_name', 'code', 'category', 'is_verified')
+    list_filter = ('category', 'is_verified')
+    search_fields = ('name', 'latin_name', 'code')
     prepopulated_fields = {'code': ('name',)}
+    fieldsets = (
+        (None, {'fields': ('name', 'code', 'category', 'latin_name')}),
+        ('Справочник', {'fields': (
+            'description', 'habitat', 'lookalikes', 'sources', 'is_verified',
+        )}),
+    )
 
 
 class SpotPhotoInline(admin.TabularInline):
