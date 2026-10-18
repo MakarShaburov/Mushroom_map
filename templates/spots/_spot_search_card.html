@@ -83,7 +83,7 @@
             {% if type_groups %}
                 <ul class="spot-types-list">
                     {% for group in type_groups %}
-                        <li><strong>{{ group.name }}:</strong> {% for type in group.types %}{{ type.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+                        <li><strong>{{ group.name }}:</strong> {% for type in group.types %}<a href="#" class="mushroom-type-link" data-type-open data-type-card-url="{% url 'spots:mushroom_type_card' type.pk %}">{{ type.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</li>
                     {% endfor %}
                 </ul>
             {% else %}

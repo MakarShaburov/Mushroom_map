@@ -1,0 +1,44 @@
+<div class="type-card" data-type-id="{{ mushroom_type.pk }}">
+    <h2 class="type-card-title">{{ mushroom_type.name }}</h2>
+    {% if mushroom_type.latin_name %}
+        <p class="type-card-latin">{{ mushroom_type.latin_name }}</p>
+    {% endif %}
+    {% if mushroom_type.category %}
+        <span class="type-card-badge">{{ mushroom_type.category.name }}</span>
+    {% endif %}
+
+    {% if not mushroom_type.is_verified %}
+        <p class="type-card-note">Черновик: тексты ещё не проверены по источникам.</p>
+    {% endif %}
+    <p class="type-card-note">Справочник носит ознакомительный характер. Не собирайте и не ешьте гриб, если не уверены в его виде.</p>
+
+    {% if mushroom_type.description or mushroom_type.habitat or mushroom_type.lookalikes %}
+        {% if mushroom_type.description %}
+            <div class="type-card-section">
+                <h3>Описание</h3>
+                {{ mushroom_type.description|linebreaks }}
+            </div>
+        {% endif %}
+        {% if mushroom_type.habitat %}
+            <div class="type-card-section">
+                <h3>Где и когда растёт</h3>
+                {{ mushroom_type.habitat|linebreaks }}
+            </div>
+        {% endif %}
+        {% if mushroom_type.lookalikes %}
+            <div class="type-card-section">
+                <h3>Похожие виды</h3>
+                {{ mushroom_type.lookalikes|linebreaks }}
+            </div>
+        {% endif %}
+    {% else %}
+        <p class="spot-card-empty">Описание пока не добавлено.</p>
+    {% endif %}
+
+    {% if mushroom_type.sources %}
+        <div class="type-card-section">
+            <h3>Источники</h3>
+            <p class="type-card-sources">{{ mushroom_type.sources|urlizetrunc:50|linebreaksbr }}</p>
+        </div>
+    {% endif %}
+</div>

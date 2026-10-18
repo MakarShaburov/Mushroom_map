@@ -692,6 +692,48 @@
     .spot-types-list li {
         margin-bottom: 4px;
     }
+    .mushroom-type-link {
+        color: var(--link);
+        text-decoration: none;
+        border-bottom: 1px dotted var(--link);
+    }
+    .type-card-title {
+        margin: 0 0 2px;
+        font-size: 1.25em;
+    }
+    .type-card-latin {
+        margin: 0 0 8px;
+        font-style: italic;
+        color: var(--muted);
+    }
+    .type-card-badge {
+        display: inline-block;
+        margin: 0 0 10px;
+        padding: 2px 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 0.85em;
+    }
+    .type-card-note {
+        margin: 0 0 12px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 0.85em;
+        color: var(--muted);
+    }
+    .type-card-section h3 {
+        margin: 12px 0 4px;
+        font-size: 1em;
+    }
+    .type-card-section p {
+        margin: 0 0 6px;
+    }
+    .type-card-sources {
+        font-size: 0.85em;
+        color: var(--muted);
+        word-break: break-word;
+    }
     .spot-review-prompt {
         margin: 0 0 8px;
         font-weight: bold;
@@ -1898,6 +1940,14 @@
                 <div id="spot-card-content"></div>
             </div>
 
+            <div id="search-type-view" style="display: none;">
+                <div class="spot-card-header-row">
+                    <p class="search-panel-label" style="margin: 0;">Справочник</p>
+                    <button type="button" id="type-card-close" class="filters-close-btn" title="Закрыть">✕</button>
+                </div>
+                <div id="type-card-content"></div>
+            </div>
+
             <div id="search-user-view" style="display: none;">
                 <div class="spot-card-header-row">
                     <p class="search-panel-label" style="margin: 0;">Профиль</p>
@@ -2476,6 +2526,46 @@
     });
 
 
+    // --- Справочная карточка вида гриба (клик по названию вида в карточке места) ---
+    const typeCardContent = document.getElementById('type-card-content');
+    let typeCardReturnView = 'results';
+
+    function openTypeCard(url) {
+        setSearchPanelCollapsed(false);
+        if (currentView !== 'type') typeCardReturnView = currentView;
+        showView('type');
+        typeCardContent.textContent = 'Загрузка…';
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error('bad status');
+                return response.text();
+            })
+            .then(html => { typeCardContent.innerHTML = html; })
+            .catch(() => { typeCardContent.textContent = 'Не удалось загрузить справочник.'; });
+    }
+
+    // Закрытие возвращает туда, откуда пришли (обычно — в карточку места).
+    function closeTypeCard() {
+        const target = typeCardReturnView || 'results';
+        showView(target);
+        if (target === 'spot') {
+            const activeTab = document.querySelector('#spot-card-content .spot-tab-btn.active');
+            if (activeTab) {
+                setSearchPanelWide(activeTab.dataset.spotTab === 'photos' || activeTab.dataset.spotTab === 'comments');
+            }
+        }
+    }
+
+    document.getElementById('type-card-close').addEventListener('click', closeTypeCard);
+    document.getElementById('spot-card-content').addEventListener('click', (e) => {
+        const link = e.target.closest('[data-type-open]');
+        if (link) {
+            e.preventDefault();
+            openTypeCard(link.dataset.typeCardUrl);
+        }
+    });
+
+
     // --- Отчёты в карточке места ---
     // Загрузка вкладки «Отчёты» (kind: all / found / none). Без force повторно
     // не грузим: вкладка уже заполнена.
@@ -2965,6 +3055,7 @@
         route: document.getElementById('search-route-view'),
         spot: document.getElementById('search-spot-view'),
         user: document.getElementById('search-user-view'),
+        type: document.getElementById('search-type-view'),
     };
     const searchProfileView = document.getElementById('search-profile-view');
     if (searchProfileView) {
