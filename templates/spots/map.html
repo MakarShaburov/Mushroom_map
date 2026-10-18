@@ -697,6 +697,34 @@
         text-decoration: none;
         border-bottom: 1px dotted var(--link);
     }
+    .reference-search {
+        width: 100%;
+        box-sizing: border-box;
+        margin: 0 0 10px;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg);
+        color: var(--text);
+        font-size: 14px;
+    }
+    .reference-group-title {
+        margin: 12px 0 4px;
+        font-weight: bold;
+    }
+    .reference-list {
+        margin: 0;
+        padding-left: 18px;
+    }
+    .reference-list li {
+        margin-bottom: 4px;
+    }
+    .reference-latin {
+        margin-left: 6px;
+        font-style: italic;
+        font-size: 0.85em;
+        color: var(--muted);
+    }
     .type-card-title {
         margin: 0 0 2px;
         font-size: 1.25em;
@@ -1834,6 +1862,7 @@
     <div class="search-panel-tabs">
         <button id="search-panel-toggle" class="search-panel-tab-btn" title="Свернуть/развернуть панель поиска">◄</button>
         <button id="search-filter-toggle" class="search-panel-tab-btn" title="Фильтры по видам грибов">🎚</button>
+        <button id="search-reference-toggle" class="search-panel-tab-btn" title="Справочник грибов" data-reference-url="{% url 'spots:mushroom_reference' %}">📖</button>
     </div>
 
     <div id="search-panel" class="search-panel">
@@ -1938,6 +1967,14 @@
                     <button type="button" id="spot-card-close" class="filters-close-btn" title="Закрыть">✕</button>
                 </div>
                 <div id="spot-card-content"></div>
+            </div>
+
+            <div id="search-reference-view" style="display: none;">
+                <div class="spot-card-header-row">
+                    <p class="search-panel-label" style="margin: 0;">Справочник грибов</p>
+                    <button type="button" id="reference-close" class="filters-close-btn" title="Закрыть">✕</button>
+                </div>
+                <div id="reference-content"></div>
             </div>
 
             <div id="search-type-view" style="display: none;">
@@ -2566,6 +2603,61 @@
     });
 
 
+    // --- Справочник грибов (кнопка 📖 под кнопкой фильтров) ---
+    const referenceContent = document.getElementById('reference-content');
+    let referenceLoaded = false;
+
+    function openReference() {
+        setSearchPanelCollapsed(false);
+        showView('reference');
+        if (referenceLoaded) return;
+        referenceContent.textContent = 'Загрузка…';
+        fetch(searchReferenceToggle.dataset.referenceUrl)
+            .then(response => {
+                if (!response.ok) throw new Error('bad status');
+                return response.text();
+            })
+            .then(html => {
+                referenceContent.innerHTML = html;
+                referenceLoaded = true;
+            })
+            .catch(() => { referenceContent.textContent = 'Не удалось загрузить справочник.'; });
+    }
+
+    // Константа searchReferenceToggle объявлена ниже (рядом с views), поэтому на этом
+    // уровне берём кнопку заново: иначе ReferenceError роняет весь скрипт страницы.
+    document.getElementById('search-reference-toggle').addEventListener('click', openReference);
+    document.getElementById('reference-close').addEventListener('click', () => showView('results'));
+
+    referenceContent.addEventListener('click', (e) => {
+        const link = e.target.closest('[data-type-open]');
+        if (link) {
+            e.preventDefault();
+            openTypeCard(link.dataset.typeCardUrl);
+        }
+    });
+
+    // Поиск по названию и латинскому названию; «ё» приравниваем к «е».
+    referenceContent.addEventListener('input', (e) => {
+        if (e.target.id !== 'reference-search') return;
+        const normalize = (text) => text.toLowerCase().replace(/ё/g, 'е');
+        const query = normalize(e.target.value.trim());
+        let shown = 0;
+        referenceContent.querySelectorAll('[data-reference-group]').forEach((group) => {
+            let groupShown = 0;
+            group.querySelectorAll('[data-reference-item]').forEach((item) => {
+                const match = !query || normalize(item.dataset.search).includes(query);
+                item.hidden = !match;
+                if (match) groupShown += 1;
+            });
+            group.hidden = groupShown === 0;
+            shown += groupShown;
+        });
+        const empty = referenceContent.querySelector('#reference-empty');
+        if (empty) empty.hidden = shown !== 0;
+    });
+
+
     // --- Отчёты в карточке места ---
     // Загрузка вкладки «Отчёты» (kind: all / found / none). Без force повторно
     // не грузим: вкладка уже заполнена.
@@ -3049,6 +3141,7 @@
     // --- Переключение "Места" / "Фильтры" / "Маршрут" внутри панели ---
     const searchFilterToggle = document.getElementById('search-filter-toggle');
     const searchRouteToggle = document.getElementById('search-route-toggle');
+    const searchReferenceToggle = document.getElementById('search-reference-toggle');
     const views = {
         results: document.getElementById('search-results-view'),
         filters: document.getElementById('search-filters-view'),
@@ -3056,6 +3149,7 @@
         spot: document.getElementById('search-spot-view'),
         user: document.getElementById('search-user-view'),
         type: document.getElementById('search-type-view'),
+        reference: document.getElementById('search-reference-view'),
     };
     const searchProfileView = document.getElementById('search-profile-view');
     if (searchProfileView) {
@@ -3072,6 +3166,7 @@
         });
         searchRouteToggle.textContent = name === 'route' ? '✕' : '🧭';
         searchRouteToggle.classList.toggle('active', name === 'route');
+        searchReferenceToggle.classList.toggle('active', name === 'reference');
         if (name !== 'route') {
             routePickingField = null;
             document.getElementById('route-picker-menu').style.display = 'none';

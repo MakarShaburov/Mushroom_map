@@ -232,6 +232,17 @@ def spot_search_card(request, pk):
     return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
 
 
+def mushroom_reference(request):
+    """Список всех видов для справочника в окне поиска (партиал для AJAX).
+    Служебный вид «Другое» не показываем: это заглушка для форм, а не гриб."""
+    groups = []
+    for group in mushroom_groups():
+        types = [t for t in group['types'] if t.code != 'other']
+        if types:
+            groups.append({'name': group['name'], 'types': types})
+    return render(request, 'spots/_mushroom_reference.html', {'groups': groups})
+
+
 def mushroom_type_card(request, pk):
     """Справочная карточка вида гриба в окне поиска (партиал для AJAX)."""
     mushroom_type = get_object_or_404(MushroomType.objects.select_related('category'), pk=pk)

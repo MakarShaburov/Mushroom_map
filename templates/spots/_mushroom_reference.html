@@ -1,0 +1,17 @@
+<div class="reference">
+    <input type="search" id="reference-search" class="reference-search" placeholder="Найти гриб…" autocomplete="off">
+    {% for group in groups %}
+        <div data-reference-group>
+            <p class="reference-group-title">{{ group.name }}</p>
+            <ul class="reference-list">
+                {% for type in group.types %}
+                    <li data-reference-item data-search="{{ type.name|lower }} {{ type.latin_name|lower }}">
+                        <a href="#" class="mushroom-type-link" data-type-open data-type-card-url="{% url 'spots:mushroom_type_card' type.pk %}">{{ type.name }}</a>
+                        {% if type.latin_name %}<span class="reference-latin">{{ type.latin_name }}</span>{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endfor %}
+    <p id="reference-empty" class="spot-card-empty" hidden>Ничего не найдено.</p>
+</div>
