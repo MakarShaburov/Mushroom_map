@@ -10,7 +10,7 @@ from django.views.decorators.http import require_POST
 
 from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
-    SpotComment, SpotPhoto, SpotRating, SpotReport,
+    SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport,
 )
 from .status import FOUND_RESULTS, STATUS_WINDOW_DAYS, compute_spot_status
 from .utils import ru_plural
@@ -430,6 +430,13 @@ def spot_detail(request, pk):
     return render(request, 'spots/spot_detail.html', _panel_context(request, spot))
 
 
+def _hazards_from_post(request):
+    """Опасности из чекбоксов формы. Нечисловые значения отбрасываем, иначе
+    фильтр по pk упал бы с ошибкой на испорченном запросе."""
+    ids = [value for value in request.POST.getlist('hazards') if value.isdigit()]
+    return SpotHazard.objects.filter(pk__in=ids)
+
+
 @login_required
 def spot_create(request):
     if request.method == 'POST':
@@ -448,6 +455,7 @@ def spot_create(request):
             )
             valid_types = MushroomType.objects.filter(pk__in=type_ids)
             spot.mushroom_types.set(valid_types)
+            spot.hazards.set(_hazards_from_post(request))
             for photo in request.FILES.getlist('photos'):
                 SpotPhoto.objects.create(spot=spot, image=photo)
             return redirect('spots:map')
@@ -462,6 +470,7 @@ def spot_create(request):
         prefill_lng = None
     return render(request, 'spots/spot_form.html', {
         'mushroom_groups': mushroom_groups(),
+        'hazards': SpotHazard.objects.all(),
         'prefill_lat': prefill_lat,
         'prefill_lng': prefill_lng,
     })
@@ -534,12 +543,15 @@ def spot_edit(request, pk):
             spot.description = description
             spot.save()
             spot.mushroom_types.set(MushroomType.objects.filter(pk__in=type_ids))
+            spot.hazards.set(_hazards_from_post(request))
             return redirect('spots:spot_detail', pk=pk)
 
     return render(request, 'spots/spot_edit.html', {
         'spot': spot,
         'mushroom_groups': mushroom_groups(),
         'selected_type_ids': set(spot.mushroom_types.values_list('id', flat=True)),
+        'hazards': SpotHazard.objects.all(),
+        'selected_hazard_ids': set(spot.hazards.values_list('id', flat=True)),
     })
 
 

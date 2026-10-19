@@ -66,6 +66,23 @@ class MushroomType(models.Model):
         return self.name
 
 
+class SpotHazard(models.Model):
+    """Опасность, которую автор может отметить у места (дикие звери, болото и т. д.).
+    Список редактируется в админке; начальный набор создаёт миграция 0014."""
+
+    code = models.SlugField('Код', max_length=50, unique=True)
+    name = models.CharField('Название', max_length=100)
+    order = models.PositiveSmallIntegerField('Порядок', default=0)
+
+    class Meta:
+        verbose_name = 'Опасность места'
+        verbose_name_plural = 'Опасности мест'
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
 class MushroomSpot(models.Model):
     """Грибное место, отмеченное на карте."""
 
@@ -79,6 +96,9 @@ class MushroomSpot(models.Model):
     description = models.TextField('Описание')
     mushroom_types = models.ManyToManyField(
         MushroomType, related_name='spots', verbose_name='Виды грибов', blank=True,
+    )
+    hazards = models.ManyToManyField(
+        SpotHazard, related_name='spots', verbose_name='Опасности', blank=True,
     )
     latitude = models.FloatField(
         'Широта',

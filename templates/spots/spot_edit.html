@@ -19,6 +19,16 @@
             {% endfor %}
         </fieldset>
     {% endfor %}
+    {% if hazards %}
+        <p>Опасности на этом месте (необязательно):</p>
+        <fieldset style="margin-bottom: 8px;">
+            {% for hazard in hazards %}
+                <label style="display: inline-block; margin-right: 12px;">
+                    <input type="checkbox" name="hazards" value="{{ hazard.id }}" {% if hazard.id in selected_hazard_ids %}checked{% endif %}> {{ hazard.name }}
+                </label>
+            {% endfor %}
+        </fieldset>
+    {% endif %}
     <button type="submit">Сохранить изменения</button>
 </form>
 

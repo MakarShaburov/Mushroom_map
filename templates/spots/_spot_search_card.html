@@ -38,6 +38,8 @@
         {% endif %}
     </div>
 
+    <p class="spot-card-author">Автор: <span class="user-link" data-user-open="{{ spot.author.username }}" data-user-card-url="{% url 'accounts:user_card' spot.author.username %}">{{ spot.author.username }}</span></p>
+
     <div class="spot-status">
         <span class="status-dot status-{{ status.code }}"></span>
         <span class="spot-status-label">{{ status.label }}</span>
@@ -54,6 +56,15 @@
     {% endif %}
 
     <p class="spot-card-description">{{ spot.description }}</p>
+
+    {% with hazards=spot.hazards.all %}
+        {% if hazards %}
+            <div class="spot-hazards">
+                <span class="spot-hazards-title">⚠ Опасности:</span>
+                {% for hazard in hazards %}<span class="spot-hazard-chip">{{ hazard.name }}</span>{% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
 
     <div class="spot-card-actions">
         <button

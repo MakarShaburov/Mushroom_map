@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, MushroomTypeImage,
-    SpotComment, SpotPhoto, SpotRating, SpotReport,
+    SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport,
 )
 
 
@@ -44,10 +44,18 @@ class SpotPhotoInline(admin.TabularInline):
     extra = 0
 
 
+@admin.register(SpotHazard)
+class SpotHazardAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'order')
+    list_editable = ('order',)
+    search_fields = ('name', 'code')
+    prepopulated_fields = {'code': ('name',)}
+
+
 @admin.register(MushroomSpot)
 class MushroomSpotAdmin(admin.ModelAdmin):
     list_display = ('title', 'author', 'mushroom_types_list', 'average_rating', 'ratings_count', 'created_at')
-    list_filter = ('mushroom_types', 'created_at')
+    list_filter = ('mushroom_types', 'hazards', 'created_at')
     search_fields = ('title', 'description', 'author__username')
     inlines = [SpotPhotoInline]
 
