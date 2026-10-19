@@ -401,6 +401,26 @@
         white-space: nowrap;
         flex-shrink: 0;
     }
+    .profile-view-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    /* Затемнение карты, пока открыт собственный профиль. Лежит под панелями (они идут
+       позже в разметке с тем же z-index) и не перехватывает мышь: карту можно двигать,
+       а обычный клик по ней закрывает профиль. */
+    .map-dim {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+        z-index: 1000;
+    }
+    .map-dim.active {
+        opacity: 1;
+    }
     .profile-menu-btn {
         border: none;
         background: none;
@@ -1927,6 +1947,7 @@
 </style>
 <div style="position: relative;">
     <div id="map" style="height: 80vh; width: 100%;"></div>
+    <div id="map-dim" class="map-dim"></div>
 
     <div class="map-topbar-left">
         {% if user.is_authenticated %}
@@ -2086,7 +2107,10 @@
                             <span class="profile-view-username">{{ user.username }}</span>
                             <span class="profile-view-rating">★ {{ user.profile.rating|default:"—" }}</span>
                         </div>
-                        <button type="button" id="profile-menu-toggle" class="profile-menu-btn" title="Меню профиля">⋯</button>
+                        <div class="profile-view-actions">
+                            <button type="button" id="profile-menu-toggle" class="profile-menu-btn" title="Меню профиля">⋯</button>
+                            <button type="button" id="profile-close" class="filters-close-btn" title="Закрыть">✕</button>
+                        </div>
 
                         <div id="profile-menu" class="profile-menu" style="display: none;">
                             <button type="button" id="profile-settings-open" class="profile-menu-item">Настройки профиля</button>
@@ -3238,6 +3262,7 @@
         spot: document.getElementById('search-spot-view'),
         user: document.getElementById('search-user-view'),
     };
+    const mapDim = document.getElementById('map-dim');
     const searchProfileView = document.getElementById('search-profile-view');
     if (searchProfileView) {
         views.profile = searchProfileView;
@@ -3258,6 +3283,8 @@
             document.getElementById('route-picker-menu').style.display = 'none';
             updateRouteFieldHighlight();
         }
+        // Пока открыт собственный профиль, основная карта затемнена.
+        mapDim.classList.toggle('active', name === 'profile');
         const profileMenuEl = document.getElementById('profile-menu');
         if (name !== 'profile' && profileMenuEl) {
             profileMenuEl.style.display = 'none';
@@ -3611,6 +3638,8 @@
 
     searchTextInput.addEventListener('input', () => {
         searchClear.style.display = searchTextInput.value ? 'inline-block' : 'none';
+        // Ввод в поиск закрывает собственный профиль и возвращает список мест.
+        if (currentView === 'profile') showView('results');
         applyFilters();
     });
     searchClear.addEventListener('click', () => {
@@ -3674,6 +3703,13 @@
             setSearchPanelCollapsed(false);
             showView('profile');
         }
+    });
+
+    // Выйти из профиля можно ещё крестиком, обычным кликом по карте
+    // и началом ввода в строку поиска (см. обработчик поиска ниже).
+    document.getElementById('profile-close').addEventListener('click', () => showView('results'));
+    map.on('click', () => {
+        if (currentView === 'profile') showView('results');
     });
 
     profileMenuToggle.addEventListener('click', (e) => {
