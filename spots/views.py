@@ -430,11 +430,14 @@ def spot_detail(request, pk):
     return render(request, 'spots/spot_detail.html', _panel_context(request, spot))
 
 
+def _ids_from_post(request, name):
+    """Числовые id из чекбоксов формы. Нечисловые значения отбрасываем, иначе
+    фильтр по pk упал бы с ошибкой 500 на испорченном запросе."""
+    return [int(value) for value in request.POST.getlist(name) if value.isdigit()]
+
+
 def _hazards_from_post(request):
-    """Опасности из чекбоксов формы. Нечисловые значения отбрасываем, иначе
-    фильтр по pk упал бы с ошибкой на испорченном запросе."""
-    ids = [value for value in request.POST.getlist('hazards') if value.isdigit()]
-    return SpotHazard.objects.filter(pk__in=ids)
+    return SpotHazard.objects.filter(pk__in=_ids_from_post(request, 'hazards'))
 
 
 @login_required
@@ -442,7 +445,7 @@ def spot_create(request):
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
-        type_ids = request.POST.getlist('mushroom_types')
+        type_ids = _ids_from_post(request, 'mushroom_types')
         latitude = request.POST.get('latitude')
         longitude = request.POST.get('longitude')
         if title and latitude and longitude:
@@ -537,7 +540,7 @@ def spot_edit(request, pk):
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
-        type_ids = request.POST.getlist('mushroom_types')
+        type_ids = _ids_from_post(request, 'mushroom_types')
         if title:
             spot.title = title
             spot.description = description
