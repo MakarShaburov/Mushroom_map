@@ -147,6 +147,41 @@ class MushroomSpot(models.Model):
         return self.ratings.count()
 
 
+def mushroom_type_image_upload_path(instance, filename):
+    # Имя функции нужно сохранить: на неё ссылается миграция 0012.
+    return f'mushroom_types/{instance.mushroom_type_id}/{filename}'
+
+
+class MushroomTypeImage(models.Model):
+    """Иллюстрация к справочной карточке вида (показываем до двух).
+
+    Автор, лицензия и ссылка на источник хранятся рядом с картинкой: многие
+    свободные фото требуют указывать авторство, а загружать чужие снимки без
+    разрешения нельзя."""
+
+    mushroom_type = models.ForeignKey(
+        MushroomType, on_delete=models.CASCADE, related_name='images',
+        verbose_name='Вид гриба',
+    )
+    image = models.ImageField('Картинка', upload_to=mushroom_type_image_upload_path)
+    caption = models.CharField('Подпись', max_length=200, blank=True)
+    author = models.CharField('Автор', max_length=200, blank=True)
+    license = models.CharField(
+        'Лицензия', max_length=100, blank=True,
+        help_text='Например: CC BY-SA 4.0 или «собственное фото».',
+    )
+    source_url = models.URLField('Ссылка на источник', blank=True)
+    order = models.PositiveSmallIntegerField('Порядок', default=0)
+
+    class Meta:
+        verbose_name = 'Картинка вида гриба'
+        verbose_name_plural = 'Картинки видов грибов'
+        ordering = ['order', 'pk']
+
+    def __str__(self):
+        return f'{self.mushroom_type.name}: {self.caption or self.image.name}'
+
+
 def spot_photo_upload_path(instance, filename):
     return f'spots/{instance.spot_id}/{filename}'
 

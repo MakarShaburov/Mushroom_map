@@ -697,6 +697,72 @@
         text-decoration: none;
         border-bottom: 1px dotted var(--link);
     }
+    .reference-window {
+        position: absolute;
+        top: 60px;
+        left: 54px;
+        width: 560px;
+        max-width: calc(100% - 64px);
+        max-height: calc(100% - 70px);
+        background: var(--panel-bg);
+        color: var(--text);
+        border-radius: 14px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .reference-window-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+    }
+    .reference-window-title {
+        flex: 1;
+        font-weight: bold;
+    }
+    .reference-back-btn {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--link);
+        padding: 4px 10px;
+        font-size: 13px;
+        cursor: pointer;
+    }
+    .reference-window-body {
+        overflow-y: auto;
+        padding: 12px 14px;
+    }
+    .type-card-images {
+        display: flex;
+        gap: 8px;
+        margin: 0 0 12px;
+    }
+    .type-card-image {
+        flex: 1;
+        min-width: 0;
+        margin: 0;
+    }
+    .type-card-image img {
+        display: block;
+        width: 100%;
+        height: 180px;
+        object-fit: cover;
+        border-radius: 10px;
+    }
+    .type-card-image figcaption {
+        margin-top: 4px;
+        font-size: 0.75em;
+        color: var(--muted);
+        word-break: break-word;
+    }
+    .type-card-image-credit {
+        display: block;
+    }
     .reference-search {
         width: 100%;
         box-sizing: border-box;
@@ -1846,6 +1912,21 @@
             <button id="user-avatar-toggle" class="user-avatar-btn" title="Профиль">{{ user.username|first|upper }}</button>
         {% endif %}
         <button id="settings-toggle" class="search-panel-tab-btn" title="Настройки">⋯</button>
+        <button id="reference-toggle" class="search-panel-tab-btn" title="Справочник грибов" data-reference-url="{% url 'spots:mushroom_reference' %}">📖</button>
+    </div>
+
+    <!-- Справочник грибов: отдельное окно слева, не вид окна поиска, чтобы его можно
+         было читать, не закрывая карточку места справа. -->
+    <div id="reference-window" class="reference-window" style="display: none;">
+        <div class="reference-window-header">
+            <button type="button" id="reference-back" class="reference-back-btn" style="display: none;">← К списку</button>
+            <span class="reference-window-title">Справочник грибов</span>
+            <button type="button" id="reference-close" class="filters-close-btn" title="Закрыть">✕</button>
+        </div>
+        <div class="reference-window-body">
+            <div id="reference-content"></div>
+            <div id="reference-card-content" style="display: none;"></div>
+        </div>
     </div>
 
     <div id="theme-dropdown" class="theme-dropdown" style="display: none;">
@@ -1862,7 +1943,6 @@
     <div class="search-panel-tabs">
         <button id="search-panel-toggle" class="search-panel-tab-btn" title="Свернуть/развернуть панель поиска">◄</button>
         <button id="search-filter-toggle" class="search-panel-tab-btn" title="Фильтры по видам грибов">🎚</button>
-        <button id="search-reference-toggle" class="search-panel-tab-btn" title="Справочник грибов" data-reference-url="{% url 'spots:mushroom_reference' %}">📖</button>
     </div>
 
     <div id="search-panel" class="search-panel">
@@ -1967,22 +2047,6 @@
                     <button type="button" id="spot-card-close" class="filters-close-btn" title="Закрыть">✕</button>
                 </div>
                 <div id="spot-card-content"></div>
-            </div>
-
-            <div id="search-reference-view" style="display: none;">
-                <div class="spot-card-header-row">
-                    <p class="search-panel-label" style="margin: 0;">Справочник грибов</p>
-                    <button type="button" id="reference-close" class="filters-close-btn" title="Закрыть">✕</button>
-                </div>
-                <div id="reference-content"></div>
-            </div>
-
-            <div id="search-type-view" style="display: none;">
-                <div class="spot-card-header-row">
-                    <p class="search-panel-label" style="margin: 0;">Справочник</p>
-                    <button type="button" id="type-card-close" class="filters-close-btn" title="Закрыть">✕</button>
-                </div>
-                <div id="type-card-content"></div>
             </div>
 
             <div id="search-user-view" style="display: none;">
@@ -2563,87 +2627,92 @@
     });
 
 
-    // --- Справочная карточка вида гриба (клик по названию вида в карточке места) ---
-    const typeCardContent = document.getElementById('type-card-content');
-    let typeCardReturnView = 'results';
-
-    function openTypeCard(url) {
-        setSearchPanelCollapsed(false);
-        if (currentView !== 'type') typeCardReturnView = currentView;
-        showView('type');
-        typeCardContent.textContent = 'Загрузка…';
-        fetch(url)
-            .then(response => {
-                if (!response.ok) throw new Error('bad status');
-                return response.text();
-            })
-            .then(html => { typeCardContent.innerHTML = html; })
-            .catch(() => { typeCardContent.textContent = 'Не удалось загрузить справочник.'; });
-    }
-
-    // Закрытие возвращает туда, откуда пришли (обычно — в карточку места).
-    function closeTypeCard() {
-        const target = typeCardReturnView || 'results';
-        showView(target);
-        if (target === 'spot') {
-            const activeTab = document.querySelector('#spot-card-content .spot-tab-btn.active');
-            if (activeTab) {
-                setSearchPanelWide(activeTab.dataset.spotTab === 'photos' || activeTab.dataset.spotTab === 'comments');
-            }
-        }
-    }
-
-    document.getElementById('type-card-close').addEventListener('click', closeTypeCard);
-    document.getElementById('spot-card-content').addEventListener('click', (e) => {
-        const link = e.target.closest('[data-type-open]');
-        if (link) {
-            e.preventDefault();
-            openTypeCard(link.dataset.typeCardUrl);
-        }
-    });
-
-
-    // --- Справочник грибов (кнопка 📖 под кнопкой фильтров) ---
-    const referenceContent = document.getElementById('reference-content');
+    // --- Окно справочника грибов: слева от карты, независимо от окна поиска ---
+    // Это не вид окна поиска (showView): справочник читают, не закрывая карточку места.
+    // Все константы окна объявлены здесь, до первого обращения к ним.
+    const referenceWindow = document.getElementById('reference-window');
+    const referenceToggleBtn = document.getElementById('reference-toggle');
+    const referenceBackBtn = document.getElementById('reference-back');
+    const referenceListEl = document.getElementById('reference-content');
+    const referenceCardEl = document.getElementById('reference-card-content');
+    const referenceBody = referenceWindow.querySelector('.reference-window-body');
     let referenceLoaded = false;
 
-    function openReference() {
-        setSearchPanelCollapsed(false);
-        showView('reference');
+    function setReferenceMode(mode) {
+        referenceListEl.style.display = mode === 'list' ? '' : 'none';
+        referenceCardEl.style.display = mode === 'card' ? '' : 'none';
+        referenceBackBtn.style.display = mode === 'card' ? '' : 'none';
+        referenceBody.scrollTop = 0;
+    }
+
+    function loadReferenceList() {
         if (referenceLoaded) return;
-        referenceContent.textContent = 'Загрузка…';
-        fetch(searchReferenceToggle.dataset.referenceUrl)
+        referenceListEl.textContent = 'Загрузка…';
+        fetch(referenceToggleBtn.dataset.referenceUrl)
             .then(response => {
                 if (!response.ok) throw new Error('bad status');
                 return response.text();
             })
             .then(html => {
-                referenceContent.innerHTML = html;
+                referenceListEl.innerHTML = html;
                 referenceLoaded = true;
             })
-            .catch(() => { referenceContent.textContent = 'Не удалось загрузить справочник.'; });
+            .catch(() => { referenceListEl.textContent = 'Не удалось загрузить справочник.'; });
     }
 
-    // Константа searchReferenceToggle объявлена ниже (рядом с views), поэтому на этом
-    // уровне берём кнопку заново: иначе ReferenceError роняет весь скрипт страницы.
-    document.getElementById('search-reference-toggle').addEventListener('click', openReference);
-    document.getElementById('reference-close').addEventListener('click', () => showView('results'));
+    function openReferenceWindow() {
+        referenceWindow.style.display = 'flex';
+        referenceToggleBtn.classList.add('active');
+        loadReferenceList();
+    }
 
-    referenceContent.addEventListener('click', (e) => {
+    function closeReferenceWindow() {
+        referenceWindow.style.display = 'none';
+        referenceToggleBtn.classList.remove('active');
+    }
+
+    // Карточка вида открывается в окне справочника — и из списка, и из карточки места.
+    function openTypeCard(url) {
+        openReferenceWindow();
+        setReferenceMode('card');
+        referenceCardEl.textContent = 'Загрузка…';
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error('bad status');
+                return response.text();
+            })
+            .then(html => { referenceCardEl.innerHTML = html; })
+            .catch(() => { referenceCardEl.textContent = 'Не удалось загрузить справочник.'; });
+    }
+
+    referenceToggleBtn.addEventListener('click', () => {
+        if (referenceWindow.style.display === 'none') {
+            openReferenceWindow();
+        } else {
+            closeReferenceWindow();
+        }
+    });
+    document.getElementById('reference-close').addEventListener('click', closeReferenceWindow);
+    referenceBackBtn.addEventListener('click', () => setReferenceMode('list'));
+
+    // Клик по названию вида: в самом справочнике и в карточке места справа.
+    function handleTypeLinkClick(e) {
         const link = e.target.closest('[data-type-open]');
         if (link) {
             e.preventDefault();
             openTypeCard(link.dataset.typeCardUrl);
         }
-    });
+    }
+    referenceWindow.addEventListener('click', handleTypeLinkClick);
+    document.getElementById('spot-card-content').addEventListener('click', handleTypeLinkClick);
 
     // Поиск по названию и латинскому названию; «ё» приравниваем к «е».
-    referenceContent.addEventListener('input', (e) => {
+    referenceListEl.addEventListener('input', (e) => {
         if (e.target.id !== 'reference-search') return;
         const normalize = (text) => text.toLowerCase().replace(/ё/g, 'е');
         const query = normalize(e.target.value.trim());
         let shown = 0;
-        referenceContent.querySelectorAll('[data-reference-group]').forEach((group) => {
+        referenceListEl.querySelectorAll('[data-reference-group]').forEach((group) => {
             let groupShown = 0;
             group.querySelectorAll('[data-reference-item]').forEach((item) => {
                 const match = !query || normalize(item.dataset.search).includes(query);
@@ -2653,7 +2722,7 @@
             group.hidden = groupShown === 0;
             shown += groupShown;
         });
-        const empty = referenceContent.querySelector('#reference-empty');
+        const empty = referenceListEl.querySelector('#reference-empty');
         if (empty) empty.hidden = shown !== 0;
     });
 
@@ -3141,15 +3210,12 @@
     // --- Переключение "Места" / "Фильтры" / "Маршрут" внутри панели ---
     const searchFilterToggle = document.getElementById('search-filter-toggle');
     const searchRouteToggle = document.getElementById('search-route-toggle');
-    const searchReferenceToggle = document.getElementById('search-reference-toggle');
     const views = {
         results: document.getElementById('search-results-view'),
         filters: document.getElementById('search-filters-view'),
         route: document.getElementById('search-route-view'),
         spot: document.getElementById('search-spot-view'),
         user: document.getElementById('search-user-view'),
-        type: document.getElementById('search-type-view'),
-        reference: document.getElementById('search-reference-view'),
     };
     const searchProfileView = document.getElementById('search-profile-view');
     if (searchProfileView) {
@@ -3166,7 +3232,6 @@
         });
         searchRouteToggle.textContent = name === 'route' ? '✕' : '🧭';
         searchRouteToggle.classList.toggle('active', name === 'route');
-        searchReferenceToggle.classList.toggle('active', name === 'reference');
         if (name !== 'route') {
             routePickingField = null;
             document.getElementById('route-picker-menu').style.display = 'none';

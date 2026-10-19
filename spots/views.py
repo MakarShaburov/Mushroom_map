@@ -244,8 +244,10 @@ def mushroom_reference(request):
 
 
 def mushroom_type_card(request, pk):
-    """Справочная карточка вида гриба в окне поиска (партиал для AJAX)."""
-    mushroom_type = get_object_or_404(MushroomType.objects.select_related('category'), pk=pk)
+    """Справочная карточка вида гриба в окне справочника (партиал для AJAX)."""
+    mushroom_type = get_object_or_404(
+        MushroomType.objects.select_related('category').prefetch_related('images'), pk=pk,
+    )
     return render(request, 'spots/_mushroom_type_card.html', {'mushroom_type': mushroom_type})
 
 

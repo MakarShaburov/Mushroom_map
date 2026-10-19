@@ -1,4 +1,24 @@
 <div class="type-card" data-type-id="{{ mushroom_type.pk }}">
+    {% with images=mushroom_type.images.all|slice:":2" %}
+        {% if images %}
+            <div class="type-card-images">
+                {% for image in images %}
+                    <figure class="type-card-image">
+                        <img src="{{ image.image.url }}" alt="{{ image.caption|default:mushroom_type.name }}" loading="lazy">
+                        {% if image.caption or image.author or image.license or image.source_url %}
+                            <figcaption>
+                                {% if image.caption %}{{ image.caption }}{% endif %}
+                                {% if image.author or image.license %}
+                                    <span class="type-card-image-credit">{% if image.author %}Фото: {{ image.author }}{% endif %}{% if image.author and image.license %}, {% endif %}{{ image.license }}</span>
+                                {% endif %}
+                                {% if image.source_url %}<a href="{{ image.source_url }}" target="_blank" rel="noopener noreferrer">источник</a>{% endif %}
+                            </figcaption>
+                        {% endif %}
+                    </figure>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
     <h2 class="type-card-title">{{ mushroom_type.name }}</h2>
     {% if mushroom_type.latin_name %}
         <p class="type-card-latin">{{ mushroom_type.latin_name }}</p>

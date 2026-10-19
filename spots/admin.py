@@ -1,8 +1,8 @@
 from django.contrib import admin
 
 from .models import (
-    CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, SpotComment,
-    SpotPhoto, SpotRating, SpotReport,
+    CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, MushroomTypeImage,
+    SpotComment, SpotPhoto, SpotRating, SpotReport,
 )
 
 
@@ -17,8 +17,16 @@ class MushroomCategoryAdmin(admin.ModelAdmin):
         return obj.types.count()
 
 
+class MushroomTypeImageInline(admin.StackedInline):
+    model = MushroomTypeImage
+    extra = 1
+    max_num = 2  # в карточке показываем не больше двух картинок
+    fields = ('image', 'caption', 'author', 'license', 'source_url', 'order')
+
+
 @admin.register(MushroomType)
 class MushroomTypeAdmin(admin.ModelAdmin):
+    inlines = [MushroomTypeImageInline]
     list_display = ('name', 'latin_name', 'code', 'category', 'is_verified')
     list_filter = ('category', 'is_verified')
     search_fields = ('name', 'latin_name', 'code')
