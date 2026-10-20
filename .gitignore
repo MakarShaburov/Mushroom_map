@@ -5,3 +5,4 @@ media/
 .env
 *.log
 backup_types.json
+DF20*.csv

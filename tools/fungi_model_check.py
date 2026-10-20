@@ -1,0 +1,169 @@
+"""Проверка готовой модели Danish Fungi до встраивания в сайт. Django не используется.
+
+Два режима:
+
+  coverage  — какие из видов справочника вообще есть среди классов модели.
+              Torch не нужен, нужна только таблица метаданных датасета.
+  predict   — прогон ваших фото через модель: топ-варианты и попадание в ожидаемый вид.
+
+Примеры (из корня проекта):
+  python tools/fungi_model_check.py coverage --metadata DF20-train_metadata_PROD.csv
+  python tools/fungi_model_check.py predict --metadata DF20-train_metadata_PROD.csv --photos my_photos
+
+Таблицу метаданных берут из архива DF20-metadata.zip со страницы датасета
+(github.com/BohemianVRA/DanishFungiDataset). Нужны колонки class_id и species.
+Папки с фото называют по коду вида из справочника, например death_cap или chanterelle.
+"""
+import argparse
+import csv
+import json
+import re
+import sys
+from pathlib import Path
+
+DEFAULT_MODEL = 'BVRA/tf_efficientnet_b0.in1k_ft_df20_384'  # полный набор видов, лицензия CC BY-NC 4.0
+DEFAULT_REFERENCE = Path('spots/data/mushroom_reference.json')
+IMAGE_SUFFIXES = {'.jpg', '.jpeg', '.png', '.webp'}
+
+
+def load_id2species(metadata_path):
+    """class_id -> название вида из таблицы метаданных датасета."""
+    with open(metadata_path, encoding='utf-8-sig', newline='') as handle:
+        reader = csv.DictReader(handle)
+        columns = reader.fieldnames or []
+        if 'class_id' not in columns or 'species' not in columns:
+            sys.exit(f'В таблице нет колонок class_id и species. Есть: {columns}')
+        id2species = {}
+        for row in reader:
+            if row['class_id'] != '' and row['species']:
+                id2species[int(row['class_id'])] = row['species'].strip()
+    return id2species
+
+
+def expected_taxon(latin_name):
+    """'Armillaria mellea и близкие виды (...)' -> ('Armillaria', 'mellea');
+    'Russula spp.' -> ('Russula', None)."""
+    head = re.split(r'\s+и\s+|\(|=', latin_name)[0].strip()
+    parts = head.split()
+    if not parts:
+        return None, None
+    species = parts[1] if len(parts) > 1 and parts[1] not in ('spp.', 'sp.') else None
+    return parts[0], species
+
+
+def match_level(predicted_species, genus, species):
+    """'species' — вид совпал, 'genus' — совпал только род, None — не совпало."""
+    pred_genus, _, pred_epithet = predicted_species.partition(' ')
+    if species is not None and pred_genus == genus and pred_epithet == species:
+        return 'species'
+    if pred_genus == genus:
+        return 'species' if species is None else 'genus'
+    return None
+
+
+def load_reference(reference_path):
+    data = json.loads(Path(reference_path).read_text(encoding='utf-8'))
+    return {code: values.get('latin_name', '') for code, values in data.items()}
+
+
+def run_coverage(args):
+    id2species = load_id2species(args.metadata)
+    reference = load_reference(args.reference)
+    exact, genus_only, missing = [], [], []
+    for code, latin in sorted(reference.items()):
+        genus, species = expected_taxon(latin)
+        levels = {match_level(name, genus, species) for name in id2species.values()}
+        if 'species' in levels:
+            exact.append((code, latin))
+        elif 'genus' in levels:
+            genus_only.append((code, latin))
+        else:
+            missing.append((code, latin))
+    print(f'Классов в модели: {len(id2species)}; видов справочника: {len(reference)}')
+    for title, items in (('Вид есть среди классов', exact),
+                         ('Есть только другие виды того же рода', genus_only),
+                         ('Рода нет среди классов', missing)):
+        print(f'\n{title}: {len(items)}')
+        for code, latin in items:
+            print(f'  {code:24} {latin}')
+    print('\nЕсли у вида в справочнике устаревшее латинское название, он может попасть в «рода нет» '
+          'или «только другие виды». Такие случаи проверьте по Index Fungorum вручную.')
+
+
+def top_predictions(probabilities, id2species, k):
+    """Топ-k пар (вид, вероятность) из списка вероятностей по class_id."""
+    ranked = sorted(range(len(probabilities)), key=lambda i: probabilities[i], reverse=True)[:k]
+    return [(id2species.get(i, f'class {i}'), probabilities[i]) for i in ranked]
+
+
+def run_predict(args):
+    # Тяжёлые библиотеки импортируем только здесь: режиму coverage они не нужны.
+    import timm
+    import torch
+    import torchvision.transforms as transforms
+    from PIL import Image
+
+    id2species = load_id2species(args.metadata)
+    reference = load_reference(args.reference)
+    model = timm.create_model(f'hf-hub:{args.model}', pretrained=True).eval()
+    size = model.pretrained_cfg.get('input_size', (3, 384, 384))[1]
+    transform = transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+    ])
+    num_classes = model.num_classes
+    print(f'Модель {args.model}: классов {num_classes}, размер входа {size}, '
+          f'в таблице метаданных классов {len(id2species)}')
+    if num_classes != len(id2species):
+        print('ВНИМАНИЕ: число классов модели и таблицы не совпадает, названия видов могут быть неверными.')
+
+    photos_root = Path(args.photos)
+    totals = {'photos': 0, 'top1': 0, 'top3': 0}
+    for folder in sorted(p for p in photos_root.iterdir() if p.is_dir()):
+        code = folder.name
+        if code not in reference:
+            print(f'Пропуск папки {code}: такого кода нет в справочнике')
+            continue
+        genus, species = expected_taxon(reference[code])
+        files = sorted(f for f in folder.iterdir() if f.suffix.lower() in IMAGE_SUFFIXES)
+        hits1 = hits3 = 0
+        for path in files:
+            image = Image.open(path).convert('RGB')
+            with torch.no_grad():
+                probabilities = torch.softmax(model(transform(image).unsqueeze(0)), dim=1)[0].tolist()
+            top = top_predictions(probabilities, id2species, args.top)
+            levels = [match_level(name, genus, species) for name, _ in top]
+            hits1 += levels[0] is not None
+            hits3 += any(level is not None for level in levels[:3])
+            if args.show:
+                shown = ', '.join(f'{name} {prob:.0%}' for name, prob in top)
+                print(f'  {path.name}: {shown}')
+        totals['photos'] += len(files)
+        totals['top1'] += hits1
+        totals['top3'] += hits3
+        print(f'{code:24} фото {len(files):3}  топ-1 {hits1:3}  топ-3 {hits3:3}  (ожидается: {reference[code]})')
+    if totals['photos']:
+        print(f"\nВсего фото {totals['photos']}: топ-1 {totals['top1'] / totals['photos']:.0%}, "
+              f"топ-3 {totals['top3'] / totals['photos']:.0%}. "
+              'Совпадением считается вид (или род, если в справочнике указан только род).')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest='command', required=True)
+    for name in ('coverage', 'predict'):
+        p = sub.add_parser(name)
+        p.add_argument('--metadata', required=True, help='CSV с колонками class_id и species')
+        p.add_argument('--reference', default=str(DEFAULT_REFERENCE))
+        if name == 'predict':
+            p.add_argument('--photos', required=True, help='папка с подпапками по кодам видов')
+            p.add_argument('--model', default=DEFAULT_MODEL)
+            p.add_argument('--top', type=int, default=5)
+            p.add_argument('--show', action='store_true', help='печатать варианты для каждого фото')
+    args = parser.parse_args()
+    run_coverage(args) if args.command == 'coverage' else run_predict(args)
+
+
+if __name__ == '__main__':
+    main()
