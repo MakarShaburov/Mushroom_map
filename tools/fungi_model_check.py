@@ -1,13 +1,15 @@
 """Проверка готовой модели Danish Fungi до встраивания в сайт. Django не используется.
 
-Два режима:
+Три режима:
 
   coverage  — какие из видов справочника вообще есть среди классов модели.
               Torch не нужен, нужна только таблица метаданных датасета.
+  image     — одно фото: топ-варианты с вероятностями (проверка, что модель вообще работает).
   predict   — прогон ваших фото через модель: топ-варианты и попадание в ожидаемый вид.
 
 Примеры (из корня проекта):
   python tools/fungi_model_check.py coverage --metadata DF20-train_metadata_PROD.csv
+  python tools/fungi_model_check.py image --metadata DF20-train_metadata_PROD.csv --image photo.jpg
   python tools/fungi_model_check.py predict --metadata DF20-train_metadata_PROD.csv --photos my_photos
 
 Таблицу метаданных берут из архива DF20-metadata.zip со страницы датасета
@@ -116,32 +118,57 @@ def run_coverage(args):
 
 
 def top_predictions(probabilities, id2species, k):
-    """Топ-k пар (вид, вероятность) из списка вероятностей по class_id."""
-    ranked = sorted(range(len(probabilities)), key=lambda i: probabilities[i], reverse=True)[:k]
-    return [(id2species.get(i, f'class {i}'), probabilities[i]) for i in ranked]
+    """Топ-k пар (вид, вероятность). У части видов в таблице по несколько class_id,
+    поэтому вероятности суммируем по названию вида."""
+    by_species = {}
+    for class_id, probability in enumerate(probabilities):
+        name = id2species.get(class_id, f'class {class_id}')
+        by_species[name] = by_species.get(name, 0.0) + probability
+    return sorted(by_species.items(), key=lambda item: item[1], reverse=True)[:k]
 
 
-def run_predict(args):
+def load_model(model_name, id2species):
+    """Модель из Hugging Face и функция подготовки картинки."""
     # Тяжёлые библиотеки импортируем только здесь: режиму coverage они не нужны.
     import timm
-    import torch
     import torchvision.transforms as transforms
-    from PIL import Image
 
-    id2species = load_id2species(args.metadata)
-    reference = load_reference(args.reference)
-    model = timm.create_model(f'hf-hub:{args.model}', pretrained=True).eval()
+    model = timm.create_model(f'hf-hub:{model_name}', pretrained=True).eval()
     size = model.pretrained_cfg.get('input_size', (3, 384, 384))[1]
     transform = transforms.Compose([
         transforms.Resize((size, size)),
         transforms.ToTensor(),
         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
     ])
-    num_classes = model.num_classes
-    print(f'Модель {args.model}: классов {num_classes}, размер входа {size}, '
+    print(f'Модель {model_name}: классов {model.num_classes}, размер входа {size}, '
           f'в таблице метаданных классов {len(id2species)}')
-    if num_classes != len(id2species):
+    if model.num_classes != len(id2species):
         print('ВНИМАНИЕ: число классов модели и таблицы не совпадает, названия видов могут быть неверными.')
+    return model, transform
+
+
+def image_probabilities(model, transform, path):
+    import torch
+    from PIL import Image
+
+    image = Image.open(path).convert('RGB')
+    with torch.no_grad():
+        return torch.softmax(model(transform(image).unsqueeze(0)), dim=1)[0].tolist()
+
+
+def run_image(args):
+    id2species = load_id2species(args.metadata)
+    model, transform = load_model(args.model, id2species)
+    probabilities = image_probabilities(model, transform, args.image)
+    print(f'\nФото: {args.image}')
+    for name, probability in top_predictions(probabilities, id2species, args.top):
+        print(f'  {probability:6.1%}  {name}')
+
+
+def run_predict(args):
+    id2species = load_id2species(args.metadata)
+    reference = load_reference(args.reference)
+    model, transform = load_model(args.model, id2species)
 
     photos_root = Path(args.photos)
     totals = {'photos': 0, 'top1': 0, 'top3': 0}
@@ -154,10 +181,7 @@ def run_predict(args):
         files = sorted(f for f in folder.iterdir() if f.suffix.lower() in IMAGE_SUFFIXES)
         hits1 = hits3 = 0
         for path in files:
-            image = Image.open(path).convert('RGB')
-            with torch.no_grad():
-                probabilities = torch.softmax(model(transform(image).unsqueeze(0)), dim=1)[0].tolist()
-            top = top_predictions(probabilities, id2species, args.top)
+            top = top_predictions(image_probabilities(model, transform, path), id2species, args.top)
             levels = [match_level(name, genus, species) for name, _ in top]
             hits1 += levels[0] is not None
             hits3 += any(level is not None for level in levels[:3])
@@ -177,17 +201,20 @@ def run_predict(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command', required=True)
-    for name in ('coverage', 'predict'):
+    for name in ('coverage', 'image', 'predict'):
         p = sub.add_parser(name)
         p.add_argument('--metadata', required=True, help='CSV с колонками class_id и species')
         p.add_argument('--reference', default=str(DEFAULT_REFERENCE))
-        if name == 'predict':
-            p.add_argument('--photos', required=True, help='папка с подпапками по кодам видов')
+        if name in ('image', 'predict'):
             p.add_argument('--model', default=DEFAULT_MODEL)
             p.add_argument('--top', type=int, default=5)
+        if name == 'image':
+            p.add_argument('--image', required=True, help='путь к одному фото')
+        if name == 'predict':
+            p.add_argument('--photos', required=True, help='папка с подпапками по кодам видов')
             p.add_argument('--show', action='store_true', help='печатать варианты для каждого фото')
     args = parser.parse_args()
-    run_coverage(args) if args.command == 'coverage' else run_predict(args)
+    {'coverage': run_coverage, 'image': run_image, 'predict': run_predict}[args.command](args)
 
 
 if __name__ == '__main__':

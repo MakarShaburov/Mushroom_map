@@ -6,3 +6,4 @@ media/
 *.log
 backup_types.json
 DF20*.csv
+external_data/
