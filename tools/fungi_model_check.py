@@ -28,17 +28,26 @@ DEFAULT_REFERENCE = Path('spots/data/mushroom_reference.json')
 IMAGE_SUFFIXES = {'.jpg', '.jpeg', '.png', '.webp'}
 
 
-def load_id2species(metadata_path):
-    """class_id -> название вида из таблицы метаданных датасета."""
-    with open(metadata_path, encoding='utf-8-sig', newline='') as handle:
-        reader = csv.DictReader(handle)
-        columns = reader.fieldnames or []
-        if 'class_id' not in columns or 'species' not in columns:
-            sys.exit(f'В таблице нет колонок class_id и species. Есть: {columns}')
-        id2species = {}
-        for row in reader:
-            if row['class_id'] != '' and row['species']:
-                id2species[int(row['class_id'])] = row['species'].strip()
+def load_id2species(metadata_paths):
+    """class_id -> название вида из одной или нескольких таблиц метаданных датасета.
+    Несколько таблиц (обучающая, проверочная, тестовая) объединяются: вид, которого нет
+    в одной из них, может быть в другой."""
+    if isinstance(metadata_paths, (str, Path)):
+        metadata_paths = [metadata_paths]
+    id2species = {}
+    for metadata_path in metadata_paths:
+        with open(metadata_path, encoding='utf-8-sig', newline='') as handle:
+            reader = csv.DictReader(handle)
+            columns = reader.fieldnames or []
+            if 'class_id' not in columns or 'species' not in columns:
+                sys.exit(f'В таблице {metadata_path} нет колонок class_id и species. Есть: {columns}')
+            for row in reader:
+                if row['class_id'] == '' or not row['species']:
+                    continue
+                class_id, name = int(float(row['class_id'])), row['species'].strip()
+                if id2species.setdefault(class_id, name) != name:
+                    print(f'ВНИМАНИЕ: class_id {class_id} в таблицах назван по-разному: '
+                          f'{id2species[class_id]} и {name}')
     return id2species
 
 
@@ -142,8 +151,13 @@ def load_model(model_name, id2species):
     ])
     print(f'Модель {model_name}: классов {model.num_classes}, размер входа {size}, '
           f'в таблице метаданных классов {len(id2species)}')
-    if model.num_classes != len(id2species):
-        print('ВНИМАНИЕ: число классов модели и таблицы не совпадает, названия видов могут быть неверными.')
+    missing = [i for i in range(model.num_classes) if i not in id2species]
+    if missing:
+        shown = ', '.join(map(str, missing[:20]))
+        print(f'ВНИМАНИЕ: у {len(missing)} классов модели нет названия в таблице (class_id: {shown}). '
+              'Названия остальных берутся по class_id; такие классы будут показаны как «class N». '
+              'Добавьте в --metadata другие таблицы из архива (тестовую, проверочную): '
+              'недостающий вид может быть в них.')
     return model, transform
 
 
@@ -203,7 +217,8 @@ def main():
     sub = parser.add_subparsers(dest='command', required=True)
     for name in ('coverage', 'image', 'predict'):
         p = sub.add_parser(name)
-        p.add_argument('--metadata', required=True, help='CSV с колонками class_id и species')
+        p.add_argument('--metadata', required=True, nargs='+',
+                       help='один или несколько CSV с колонками class_id и species')
         p.add_argument('--reference', default=str(DEFAULT_REFERENCE))
         if name in ('image', 'predict'):
             p.add_argument('--model', default=DEFAULT_MODEL)
