@@ -76,6 +76,13 @@ def synonym_hints(latin_name, id2species):
                    if name.partition(' ')[2] == species and name.partition(' ')[0] != genus})
 
 
+def genus_species(latin_name, id2species):
+    """Названия классов того же рода: помогают заметить, что вид в таблице записан иначе
+    (другой эпитет), и не искать его по таблице вручную."""
+    genus, _ = expected_taxon(latin_name)
+    return sorted(name for name in id2species.values() if name.partition(' ')[0] == genus)
+
+
 def run_coverage(args):
     id2species = load_id2species(args.metadata)
     reference = load_reference(args.reference)
@@ -96,8 +103,14 @@ def run_coverage(args):
         print(f'\n{title}: {len(items)}')
         for code, latin in items:
             print(f'  {code:24} {latin}')
+            if items is exact:
+                continue  # вид найден по названию, подсказки о синонимах не нужны
             for hint in synonym_hints(latin, id2species):
                 print(f'      возможный синоним в таблице: {hint}')
+            same_genus = genus_species(latin, id2species)
+            if same_genus:
+                shown = ', '.join(same_genus[:25]) + (' …' if len(same_genus) > 25 else '')
+                print(f'      виды этого рода в таблице ({len(same_genus)}): {shown}')
     print('\nЕсли у вида в справочнике устаревшее латинское название, он может попасть в «рода нет» '
           'или «только другие виды». Такие случаи проверьте по Index Fungorum вручную.')
 
