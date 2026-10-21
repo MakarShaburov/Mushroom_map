@@ -66,6 +66,16 @@ def load_reference(reference_path):
     return {code: values.get('latin_name', '') for code, values in data.items()}
 
 
+def synonym_hints(latin_name, id2species):
+    """Виды из таблицы с тем же эпитетом, но под другим родом: так обычно видны переименования
+    (например, вид перенесли в другой род). Это только подсказка, её нужно проверять."""
+    genus, species = expected_taxon(latin_name)
+    if species is None:
+        return []
+    return sorted({name for name in id2species.values()
+                   if name.partition(' ')[2] == species and name.partition(' ')[0] != genus})
+
+
 def run_coverage(args):
     id2species = load_id2species(args.metadata)
     reference = load_reference(args.reference)
@@ -86,6 +96,8 @@ def run_coverage(args):
         print(f'\n{title}: {len(items)}')
         for code, latin in items:
             print(f'  {code:24} {latin}')
+            for hint in synonym_hints(latin, id2species):
+                print(f'      возможный синоним в таблице: {hint}')
     print('\nЕсли у вида в справочнике устаревшее латинское название, он может попасть в «рода нет» '
           'или «только другие виды». Такие случаи проверьте по Index Fungorum вручную.')
 
