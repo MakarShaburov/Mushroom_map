@@ -1,3 +1,4 @@
+import logging
 from datetime import date, timedelta
 
 from django.contrib.auth.decorators import login_required
@@ -7,7 +8,9 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from PIL import Image, ImageOps, UnidentifiedImageError
 
+from . import identify
 from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
     SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport,
@@ -15,7 +18,11 @@ from .models import (
 from .status import FOUND_RESULTS, STATUS_WINDOW_DAYS, compute_spot_status
 from .utils import ru_plural
 
+logger = logging.getLogger(__name__)
+
 PANEL_HEADER = 'X-Panel-Request'
+MAX_IDENTIFY_BYTES = 8 * 1024 * 1024  # фото для определения вида; не сохраняется
+IDENTIFY_MAX_SIDE = 1600              # больше модели всё равно не нужно
 PHOTO_LIKE_MODELS = {'spot': SpotPhoto, 'comment_photo': CommentPhoto}
 MAX_COMMENT_PHOTOS = 10
 REPORTS_IN_CARD = 50          # сколько последних отчётов выводим в карточке места
@@ -240,7 +247,43 @@ def mushroom_reference(request):
         types = [t for t in group['types'] if t.code != 'other']
         if types:
             groups.append({'name': group['name'], 'types': types})
-    return render(request, 'spots/_mushroom_reference.html', {'groups': groups})
+    return render(request, 'spots/_mushroom_reference.html', {
+        'groups': groups,
+        'identify_available': identify.is_available(),
+    })
+
+
+@login_required
+@require_POST
+def mushroom_identify(request):
+    """Определение вида гриба по фото: партиал с вариантами (подсказка, не ответ).
+    Фото обрабатывается в памяти и нигде не сохраняется. Только для вошедших: определение
+    нагружает процессор."""
+    def answer(**context):
+        return render(request, 'spots/_identify_result.html', context)
+
+    if not identify.is_available():
+        return answer(error='Определение по фото не настроено на этом сервере.')
+    upload = request.FILES.get('photo')
+    if upload is None:
+        return answer(error='Фото не получено.')
+    if upload.size > MAX_IDENTIFY_BYTES:
+        return answer(error='Фото слишком большое: максимум 8 МБ.')
+    try:
+        image = Image.open(upload)
+        image.load()
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
+        return answer(error='Не удалось прочитать файл как изображение.')
+    image = ImageOps.exif_transpose(image)  # повернуть так, как снято на телефон
+    image.thumbnail((IDENTIFY_MAX_SIDE, IDENTIFY_MAX_SIDE))
+    try:
+        result = identify.identify_image(image)
+    except identify.IdentifyUnavailable:
+        return answer(error='Определение по фото не настроено на этом сервере.')
+    except Exception:
+        logger.exception('Не удалось определить гриб по фото')
+        return answer(error='Не удалось определить гриб. Попробуйте ещё раз.')
+    return answer(**result)
 
 
 def mushroom_type_card(request, pk):

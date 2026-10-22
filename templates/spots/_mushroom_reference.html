@@ -1,4 +1,16 @@
 <div class="reference">
+    {% if identify_available %}
+        <div class="identify-box">
+            {% if user.is_authenticated %}
+                <label class="identify-btn">📷 Определить гриб по фото
+                    <input type="file" id="identify-input" accept="image/*" hidden data-identify-url="{% url 'spots:mushroom_identify' %}">
+                </label>
+                <p class="reference-latin">Подсказка, а не ответ. Фото не сохраняется.</p>
+            {% else %}
+                <p class="reference-latin">Чтобы определять грибы по фото, войдите в аккаунт.</p>
+            {% endif %}
+        </div>
+    {% endif %}
     <input type="search" id="reference-search" class="reference-search" placeholder="Найти гриб…" autocomplete="off">
     {% for group in groups %}
         <div data-reference-group>

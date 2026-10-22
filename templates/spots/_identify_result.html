@@ -1,0 +1,35 @@
+<div class="identify-result">
+    {% if error %}
+        <p class="type-card-note">{{ error }}</p>
+    {% else %}
+        <h2 class="type-card-title">Возможные варианты</h2>
+        {% if deadly_types %}
+            <p class="identify-warning">⚠ Среди возможных вариантов есть смертельно ядовитый вид:
+                {% for type in deadly_types %}<a href="#" class="mushroom-type-link" data-type-open data-type-card-url="{% url 'spots:mushroom_type_card' type.pk %}">{{ type.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.
+                Не ешьте этот гриб, пока его не проверит специалист.</p>
+        {% endif %}
+        {% if poisonous_types %}
+            <p class="identify-warning">⚠ Среди возможных вариантов есть ядовитый вид:
+                {% for type in poisonous_types %}<a href="#" class="mushroom-type-link" data-type-open data-type-card-url="{% url 'spots:mushroom_type_card' type.pk %}">{{ type.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
+        {% endif %}
+        {% if not confident %}
+            <p class="type-card-note">Модель не уверена в определении: фото может быть неудачным, а гриб — не из тех, что она знает.</p>
+        {% endif %}
+        <ol class="identify-list">
+            {% for candidate in candidates %}
+                <li>
+                    {% if candidate.type %}
+                        <a href="#" class="mushroom-type-link" data-type-open data-type-card-url="{% url 'spots:mushroom_type_card' candidate.type.pk %}">{{ candidate.type.name }}</a>
+                        <span class="reference-latin">{{ candidate.species }}</span>
+                        {% if candidate.type.category %}<span class="type-card-badge">{{ candidate.type.category.name }}</span>{% endif %}
+                    {% else %}
+                        {{ candidate.species }}
+                        <span class="reference-latin">нет в справочнике</span>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ol>
+        <p class="type-card-note">Определение по фото ненадёжно: варианты расположены от более вероятного к менее. Не ешьте гриб, определённый только по фото.</p>
+        <p class="type-card-sources">Модель Danish Fungi (BVRA), лицензия CC BY-NC 4.0. Фото не сохраняется.</p>
+    {% endif %}
+</div>

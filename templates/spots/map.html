@@ -804,6 +804,39 @@
     .type-card-image-credit {
         display: block;
     }
+    .identify-box {
+        margin: 0 0 12px;
+    }
+    .identify-btn {
+        display: inline-block;
+        padding: 8px 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--link);
+        cursor: pointer;
+    }
+    .identify-preview {
+        display: block;
+        width: 100%;
+        max-height: 240px;
+        object-fit: contain;
+        margin: 0 0 12px;
+        border-radius: 10px;
+    }
+    .identify-warning {
+        margin: 0 0 12px;
+        padding: 8px 10px;
+        border: 2px solid var(--text);
+        border-radius: 8px;
+        font-weight: bold;
+    }
+    .identify-list {
+        margin: 0 0 12px;
+        padding-left: 22px;
+    }
+    .identify-list li {
+        margin-bottom: 6px;
+    }
     .reference-search {
         width: 100%;
         box-sizing: border-box;
@@ -2750,6 +2783,40 @@
     }
     referenceWindow.addEventListener('click', handleTypeLinkClick);
     document.getElementById('spot-card-content').addEventListener('click', handleTypeLinkClick);
+
+    // Определение вида по фото: подсказка с вариантами, фото на сервере не сохраняется.
+    function identifyPhoto(file, input) {
+        setReferenceMode('card');
+        referenceCardEl.textContent = '';
+        const preview = document.createElement('img');
+        preview.className = 'identify-preview';
+        preview.alt = 'Загруженное фото';
+        preview.src = URL.createObjectURL(file);
+        preview.onload = () => URL.revokeObjectURL(preview.src);
+        const resultBox = document.createElement('div');
+        resultBox.textContent = 'Определяем… Первый запрос может занять до минуты.';
+        referenceCardEl.append(preview, resultBox);
+        const body = new FormData();
+        body.append('photo', file);
+        fetch(input.dataset.identifyUrl, {
+            method: 'POST',
+            body: body,
+            headers: { 'X-CSRFToken': getCsrfToken() },
+        })
+            .then(response => {
+                if (!response.ok) throw new Error('bad status');
+                return response.text();
+            })
+            .then(html => { resultBox.innerHTML = html; })
+            .catch(() => { resultBox.textContent = 'Не удалось определить гриб. Попробуйте ещё раз.'; })
+            .finally(() => { input.value = ''; });
+    }
+
+    referenceListEl.addEventListener('change', (e) => {
+        if (e.target.id === 'identify-input' && e.target.files.length) {
+            identifyPhoto(e.target.files[0], e.target);
+        }
+    });
 
     // Поиск по названию и латинскому названию; «ё» приравниваем к «е».
     referenceListEl.addEventListener('input', (e) => {
