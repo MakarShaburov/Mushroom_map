@@ -136,6 +136,13 @@ def top_predictions(probabilities, id2species, k):
     return sorted(by_species.items(), key=lambda item: item[1], reverse=True)[:k]
 
 
+def score_levels(levels):
+    """По списку уровней совпадения топ-вариантов считает попадания:
+    (вид в топ-1, хотя бы род в топ-1, вид в топ-3, хотя бы род в топ-3)."""
+    return (levels[0] == 'species', levels[0] is not None,
+            'species' in levels[:3], any(level is not None for level in levels[:3]))
+
+
 def load_model(model_name, id2species):
     """Модель из Hugging Face и функция подготовки картинки."""
     # Тяжёлые библиотеки импортируем только здесь: режиму coverage они не нужны.
@@ -185,7 +192,8 @@ def run_predict(args):
     model, transform = load_model(args.model, id2species)
 
     photos_root = Path(args.photos)
-    totals = {'photos': 0, 'top1': 0, 'top3': 0}
+    totals = [0, 0, 0, 0, 0]  # фото, вид топ-1, род топ-1, вид топ-3, род топ-3
+    print('Колонки: «вид» — точное совпадение вида, «род+» — совпал хотя бы род (вид другой).')
     for folder in sorted(p for p in photos_root.iterdir() if p.is_dir()):
         code = folder.name
         if code not in reference:
@@ -193,23 +201,27 @@ def run_predict(args):
             continue
         genus, species = expected_taxon(reference[code])
         files = sorted(f for f in folder.iterdir() if f.suffix.lower() in IMAGE_SUFFIXES)
-        hits1 = hits3 = 0
+        folder_scores = [0, 0, 0, 0]
         for path in files:
             top = top_predictions(image_probabilities(model, transform, path), id2species, args.top)
             levels = [match_level(name, genus, species) for name, _ in top]
-            hits1 += levels[0] is not None
-            hits3 += any(level is not None for level in levels[:3])
+            for i, hit in enumerate(score_levels(levels)):
+                folder_scores[i] += hit
             if args.show:
                 shown = ', '.join(f'{name} {prob:.0%}' for name, prob in top)
                 print(f'  {path.name}: {shown}')
-        totals['photos'] += len(files)
-        totals['top1'] += hits1
-        totals['top3'] += hits3
-        print(f'{code:24} фото {len(files):3}  топ-1 {hits1:3}  топ-3 {hits3:3}  (ожидается: {reference[code]})')
-    if totals['photos']:
-        print(f"\nВсего фото {totals['photos']}: топ-1 {totals['top1'] / totals['photos']:.0%}, "
-              f"топ-3 {totals['top3'] / totals['photos']:.0%}. "
-              'Совпадением считается вид (или род, если в справочнике указан только род).')
+        totals[0] += len(files)
+        for i, value in enumerate(folder_scores, start=1):
+            totals[i] += value
+        s1, a1, s3, a3 = folder_scores
+        print(f'{code:24} фото {len(files):3}  топ-1: вид {s1}, род+ {a1 - s1}  '
+              f'топ-3: вид {s3}, род+ {a3 - s3}  (ожидается: {reference[code]})')
+    n = totals[0]
+    if n:
+        print(f'\nВсего фото {n}. Строго по виду: топ-1 {totals[1] / n:.0%}, топ-3 {totals[3] / n:.0%}. '
+              f'Если считать и совпадение рода: топ-1 {totals[2] / n:.0%}, топ-3 {totals[4] / n:.0%}.')
+        print('Совпадение по роду не доказывает верный вид: например, Agaricus arvensis и Agaricus xanthodermus '
+              'оба Agaricus, но это разные грибы.')
 
 
 def main():
