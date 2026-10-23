@@ -100,11 +100,25 @@ class IdentifyViewTests(TestCase):
 
 
 class ReferenceIdentifyButtonTests(TestCase):
-    def test_button_only_for_logged_in_users_when_available(self):
+    def test_list_button_only_for_logged_in_users_when_available(self):
         url = reverse('spots:mushroom_reference')
         with mock.patch('spots.identify.is_available', return_value=True):
             self.assertContains(self.client.get(url), 'войдите в аккаунт')
             self.client.force_login(get_user_model().objects.create_user('u', 'u@example.com', 'pw'))
-            self.assertContains(self.client.get(url), 'identify-input')
+            self.assertContains(self.client.get(url), 'data-scan-open')
         with mock.patch('spots.identify.is_available', return_value=False):
-            self.assertNotContains(self.client.get(url), 'identify-input')
+            self.assertNotContains(self.client.get(url), 'data-scan-open')
+
+    def test_scanner_button_and_screen_on_main_page_only_when_available_and_logged_in(self):
+        url = reverse('spots:map')
+        with mock.patch('spots.identify.is_available', return_value=True):
+            guest = self.client.get(url)
+            self.assertNotContains(guest, 'id="scanner-toggle"')
+            self.assertNotContains(guest, 'id="identify-input"')
+            self.client.force_login(get_user_model().objects.create_user('u', 'u@example.com', 'pw'))
+            logged_in = self.client.get(url)
+            self.assertContains(logged_in, 'id="scanner-toggle"')
+            self.assertContains(logged_in, 'id="reference-scan-content"')
+            self.assertContains(logged_in, 'id="identify-input"')
+        with mock.patch('spots.identify.is_available', return_value=False):
+            self.assertNotContains(self.client.get(url), 'id="scanner-toggle"')

@@ -79,6 +79,7 @@ def group_types_by_category(types):
 def map_view(request):
     return render(request, 'spots/map.html', {
         'mushroom_groups': mushroom_groups(),
+        'identify_available': identify.is_available(),
     })
 
 

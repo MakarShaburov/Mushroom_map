@@ -807,6 +807,10 @@
     .identify-box {
         margin: 0 0 12px;
     }
+    button.identify-btn {
+        background: transparent;
+        font: inherit;
+    }
     .identify-btn {
         display: inline-block;
         padding: 8px 14px;
@@ -1988,6 +1992,9 @@
         {% endif %}
         <button id="settings-toggle" class="search-panel-tab-btn" title="Настройки">⋯</button>
         <button id="reference-toggle" class="search-panel-tab-btn" title="Справочник грибов" data-reference-url="{% url 'spots:mushroom_reference' %}">📖</button>
+        {% if identify_available and user.is_authenticated %}
+            <button id="scanner-toggle" class="search-panel-tab-btn" title="Определить гриб по фото">📷</button>
+        {% endif %}
     </div>
 
     <!-- Справочник грибов: отдельное окно слева, не вид окна поиска, чтобы его можно
@@ -1995,12 +2002,23 @@
     <div id="reference-window" class="reference-window" style="display: none;">
         <div class="reference-window-header">
             <button type="button" id="reference-back" class="reference-back-btn" style="display: none;">← К списку</button>
-            <span class="reference-window-title">Справочник грибов</span>
+            <span id="reference-title" class="reference-window-title">Справочник грибов</span>
             <button type="button" id="reference-close" class="filters-close-btn" title="Закрыть">✕</button>
         </div>
         <div class="reference-window-body">
             <div id="reference-content"></div>
             <div id="reference-card-content" style="display: none;"></div>
+            {% if identify_available and user.is_authenticated %}
+                <div id="reference-scan-content" style="display: none;">
+                    <div class="identify-box">
+                        <label class="identify-btn">📷 <span id="identify-label-text">Выбрать фото</span>
+                            <input type="file" id="identify-input" accept="image/*" hidden data-identify-url="{% url 'spots:mushroom_identify' %}">
+                        </label>
+                        <p class="reference-latin">Подсказка, а не ответ. Фото не сохраняется. Следующий снимок можно выбрать сразу, не выходя из этого окна.</p>
+                    </div>
+                    <div id="identify-output"></div>
+                </div>
+            {% endif %}
         </div>
     </div>
 
@@ -2707,20 +2725,47 @@
 
     // --- Окно справочника грибов: слева от карты, независимо от окна поиска ---
     // Это не вид окна поиска (showView): справочник читают, не закрывая карточку места.
-    // Все константы окна объявлены здесь, до первого обращения к ним.
+    // Режимы окна: list (список), card (карточка вида), scan (определение по фото).
+    // Все константы и состояние объявлены здесь, до первого обращения к ним.
     const referenceWindow = document.getElementById('reference-window');
     const referenceToggleBtn = document.getElementById('reference-toggle');
+    const scannerToggleBtn = document.getElementById('scanner-toggle');       // null, если сканер недоступен
     const referenceBackBtn = document.getElementById('reference-back');
+    const referenceTitleEl = document.getElementById('reference-title');
     const referenceListEl = document.getElementById('reference-content');
     const referenceCardEl = document.getElementById('reference-card-content');
+    const referenceScanEl = document.getElementById('reference-scan-content'); // null, если сканер недоступен
+    const identifyInput = document.getElementById('identify-input');
+    const identifyOutput = document.getElementById('identify-output');
+    const identifyLabelText = document.getElementById('identify-label-text');
     const referenceBody = referenceWindow.querySelector('.reference-window-body');
+    let referenceMode = 'list';
+    let referenceReturnMode = 'list';   // куда вернёт «назад» из карточки вида
     let referenceLoaded = false;
 
+    function updateReferenceButtons() {
+        const isOpen = referenceWindow.style.display !== 'none';
+        referenceToggleBtn.classList.toggle('active', isOpen && referenceMode !== 'scan');
+        if (scannerToggleBtn) scannerToggleBtn.classList.toggle('active', isOpen && referenceMode === 'scan');
+    }
+
     function setReferenceMode(mode) {
+        referenceMode = mode;
         referenceListEl.style.display = mode === 'list' ? '' : 'none';
         referenceCardEl.style.display = mode === 'card' ? '' : 'none';
-        referenceBackBtn.style.display = mode === 'card' ? '' : 'none';
+        if (referenceScanEl) referenceScanEl.style.display = mode === 'scan' ? '' : 'none';
+        referenceTitleEl.textContent = mode === 'scan' ? 'Определение по фото' : 'Справочник грибов';
+        // «Назад»: из определения — в справочник, из карточки — туда, откуда пришли.
+        if (mode === 'scan') {
+            referenceBackBtn.textContent = '← Справочник';
+            referenceBackBtn.dataset.target = 'list';
+        } else {
+            referenceBackBtn.textContent = referenceReturnMode === 'scan' ? '← К снимку' : '← К списку';
+            referenceBackBtn.dataset.target = referenceReturnMode;
+        }
+        referenceBackBtn.style.display = mode === 'list' ? 'none' : '';
         referenceBody.scrollTop = 0;
+        updateReferenceButtons();
     }
 
     function loadReferenceList() {
@@ -2740,17 +2785,33 @@
 
     function openReferenceWindow() {
         referenceWindow.style.display = 'flex';
-        referenceToggleBtn.classList.add('active');
         loadReferenceList();
+        updateReferenceButtons();
     }
 
     function closeReferenceWindow() {
         referenceWindow.style.display = 'none';
-        referenceToggleBtn.classList.remove('active');
+        updateReferenceButtons();
     }
 
-    // Карточка вида открывается в окне справочника — и из списка, и из карточки места.
+    function showReferenceList() {
+        referenceReturnMode = 'list';
+        openReferenceWindow();
+        setReferenceMode('list');
+    }
+
+    // Определение по фото: сразу открывает выбор снимка, не заходя в список справочника.
+    function openScanner() {
+        if (!referenceScanEl) return;
+        openReferenceWindow();
+        setReferenceMode('scan');
+        identifyInput.click();
+    }
+
+    // Карточка вида открывается в окне справочника — из списка, из результата определения
+    // и из карточки места. «Назад» возвращает туда, откуда пришли (результат сохраняется).
     function openTypeCard(url) {
+        if (referenceMode !== 'card') referenceReturnMode = referenceMode;
         openReferenceWindow();
         setReferenceMode('card');
         referenceCardEl.textContent = 'Загрузка…';
@@ -2763,15 +2824,28 @@
             .catch(() => { referenceCardEl.textContent = 'Не удалось загрузить справочник.'; });
     }
 
+    // 📖: из списка и карточки закрывает окно, из режима определения переключает на список.
     referenceToggleBtn.addEventListener('click', () => {
-        if (referenceWindow.style.display === 'none') {
-            openReferenceWindow();
-        } else {
+        const isOpen = referenceWindow.style.display !== 'none';
+        if (isOpen && referenceMode !== 'scan') {
             closeReferenceWindow();
+        } else {
+            showReferenceList();
         }
     });
+    // 📷: открывает определение и сразу выбор фото; повторный клик в этом режиме закрывает окно.
+    if (scannerToggleBtn) {
+        scannerToggleBtn.addEventListener('click', () => {
+            const isOpen = referenceWindow.style.display !== 'none';
+            if (isOpen && referenceMode === 'scan') {
+                closeReferenceWindow();
+            } else {
+                openScanner();
+            }
+        });
+    }
     document.getElementById('reference-close').addEventListener('click', closeReferenceWindow);
-    referenceBackBtn.addEventListener('click', () => setReferenceMode('list'));
+    referenceBackBtn.addEventListener('click', () => setReferenceMode(referenceBackBtn.dataset.target || 'list'));
 
     // Клик по названию вида: в самом справочнике и в карточке места справа.
     function handleTypeLinkClick(e) {
@@ -2783,22 +2857,29 @@
     }
     referenceWindow.addEventListener('click', handleTypeLinkClick);
     document.getElementById('spot-card-content').addEventListener('click', handleTypeLinkClick);
+    // Кнопка «Определить гриб по фото» в списке справочника.
+    referenceWindow.addEventListener('click', (e) => {
+        if (e.target.closest('[data-scan-open]')) openScanner();
+    });
 
     // Определение вида по фото: подсказка с вариантами, фото на сервере не сохраняется.
-    function identifyPhoto(file, input) {
-        setReferenceMode('card');
-        referenceCardEl.textContent = '';
+    // Результат показывается в этом же окне, поэтому следующий снимок можно выбрать сразу.
+    function identifyPhoto(file) {
+        identifyOutput.textContent = '';
         const preview = document.createElement('img');
         preview.className = 'identify-preview';
         preview.alt = 'Загруженное фото';
         preview.src = URL.createObjectURL(file);
         preview.onload = () => URL.revokeObjectURL(preview.src);
+        // У каждого запроса свой блок результата: ответ устаревшего запроса попадёт в
+        // уже убранный блок и не перепутается с ответом на новый снимок.
         const resultBox = document.createElement('div');
         resultBox.textContent = 'Определяем… Первый запрос может занять до минуты.';
-        referenceCardEl.append(preview, resultBox);
+        identifyOutput.append(preview, resultBox);
+        if (identifyLabelText) identifyLabelText.textContent = 'Выбрать другой снимок';
         const body = new FormData();
         body.append('photo', file);
-        fetch(input.dataset.identifyUrl, {
+        fetch(identifyInput.dataset.identifyUrl, {
             method: 'POST',
             body: body,
             headers: { 'X-CSRFToken': getCsrfToken() },
@@ -2809,14 +2890,14 @@
             })
             .then(html => { resultBox.innerHTML = html; })
             .catch(() => { resultBox.textContent = 'Не удалось определить гриб. Попробуйте ещё раз.'; })
-            .finally(() => { input.value = ''; });
+            .finally(() => { identifyInput.value = ''; });
     }
 
-    referenceListEl.addEventListener('change', (e) => {
-        if (e.target.id === 'identify-input' && e.target.files.length) {
-            identifyPhoto(e.target.files[0], e.target);
-        }
-    });
+    if (identifyInput) {
+        identifyInput.addEventListener('change', () => {
+            if (identifyInput.files.length) identifyPhoto(identifyInput.files[0]);
+        });
+    }
 
     // Поиск по названию и латинскому названию; «ё» приравниваем к «е».
     referenceListEl.addEventListener('input', (e) => {
