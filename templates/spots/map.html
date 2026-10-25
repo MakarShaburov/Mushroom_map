@@ -827,6 +827,36 @@
         margin: 0 0 12px;
         border-radius: 10px;
     }
+    .identify-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 0 0 8px;
+    }
+    .identify-camera {
+        margin: 0 0 12px;
+    }
+    .identify-video {
+        display: block;
+        width: 100%;
+        max-height: 320px;
+        object-fit: contain;
+        background: #000;  /* чёрные поля вокруг кадра в любой теме */
+        border-radius: 10px;
+    }
+    .identify-camera-actions {
+        display: flex;
+        gap: 8px;
+        margin: 8px 0 0;
+    }
+    .identify-btn:disabled {
+        opacity: 0.5;
+        cursor: default;
+    }
+    .identify-camera-error {
+        margin: 0 0 8px;
+        color: var(--muted);
+    }
     .identify-warning {
         margin: 0 0 12px;
         padding: 8px 10px;
@@ -2011,10 +2041,21 @@
             {% if identify_available and user.is_authenticated %}
                 <div id="reference-scan-content" style="display: none;">
                     <div class="identify-box">
-                        <label class="identify-btn">📷 <span id="identify-label-text">Выбрать фото</span>
-                            <input type="file" id="identify-input" accept="image/*" hidden data-identify-url="{% url 'spots:mushroom_identify' %}">
-                        </label>
-                        <p class="reference-latin">Подсказка, а не ответ. Фото не сохраняется. Следующий снимок можно выбрать сразу, не выходя из этого окна.</p>
+                        <div class="identify-actions">
+                            <button type="button" id="identify-camera-btn" class="identify-btn">📸 <span id="identify-camera-label">Сделать снимок</span></button>
+                            <label class="identify-btn">🖼 <span id="identify-label-text">Выбрать фото</span>
+                                <input type="file" id="identify-input" accept="image/*" hidden data-identify-url="{% url 'spots:mushroom_identify' %}">
+                            </label>
+                        </div>
+                        <p id="identify-camera-error" class="identify-camera-error" style="display: none;"></p>
+                        <div id="identify-camera" class="identify-camera" style="display: none;">
+                            <video id="identify-video" class="identify-video" autoplay muted playsinline></video>
+                            <div class="identify-camera-actions">
+                                <button type="button" id="identify-shoot-btn" class="identify-btn" disabled>📸 Снять</button>
+                                <button type="button" id="identify-camera-cancel" class="identify-btn">Отмена</button>
+                            </div>
+                        </div>
+                        <p class="reference-latin">Подсказка, а не ответ. Фото не сохраняется. Снимок можно сделать камерой или выбрать файл; следующий — сразу, не выходя из этого окна.</p>
                     </div>
                     <div id="identify-output"></div>
                 </div>
@@ -2738,6 +2779,17 @@
     const identifyInput = document.getElementById('identify-input');
     const identifyOutput = document.getElementById('identify-output');
     const identifyLabelText = document.getElementById('identify-label-text');
+    // Съёмка камерой: все элементы null, если сканер недоступен.
+    const identifyCameraBtn = document.getElementById('identify-camera-btn');
+    const identifyCameraLabel = document.getElementById('identify-camera-label');
+    const identifyCameraEl = document.getElementById('identify-camera');
+    const identifyCameraError = document.getElementById('identify-camera-error');
+    const identifyVideo = document.getElementById('identify-video');
+    const identifyShootBtn = document.getElementById('identify-shoot-btn');
+    const identifyCameraCancelBtn = document.getElementById('identify-camera-cancel');
+    const CAMERA_MAX_SIDE = 1600;   // длинная сторона снимка; сервер всё равно уменьшает фото
+    let cameraStream = null;
+    let cameraRequestId = 0;        // ответ на устаревший запрос камеры не должен её включить
     const referenceBody = referenceWindow.querySelector('.reference-window-body');
     let referenceMode = 'list';
     let referenceReturnMode = 'list';   // куда вернёт «назад» из карточки вида
@@ -2751,6 +2803,7 @@
 
     function setReferenceMode(mode) {
         referenceMode = mode;
+        if (mode !== 'scan') stopCamera();
         referenceListEl.style.display = mode === 'list' ? '' : 'none';
         referenceCardEl.style.display = mode === 'card' ? '' : 'none';
         if (referenceScanEl) referenceScanEl.style.display = mode === 'scan' ? '' : 'none';
@@ -2790,6 +2843,7 @@
     }
 
     function closeReferenceWindow() {
+        stopCamera();
         referenceWindow.style.display = 'none';
         updateReferenceButtons();
     }
@@ -2800,12 +2854,12 @@
         setReferenceMode('list');
     }
 
-    // Определение по фото: сразу открывает выбор снимка, не заходя в список справочника.
+    // Определение по фото: открывает окно, не заходя в список справочника. Способ получения
+    // снимка (камера или файл) выбирает пользователь, поэтому окно выбора файла не открываем.
     function openScanner() {
         if (!referenceScanEl) return;
         openReferenceWindow();
         setReferenceMode('scan');
-        identifyInput.click();
     }
 
     // Карточка вида открывается в окне справочника — из списка, из результата определения
@@ -2833,7 +2887,7 @@
             showReferenceList();
         }
     });
-    // 📷: открывает определение и сразу выбор фото; повторный клик в этом режиме закрывает окно.
+    // 📷: открывает определение по фото; повторный клик в этом режиме закрывает окно.
     if (scannerToggleBtn) {
         scannerToggleBtn.addEventListener('click', () => {
             const isOpen = referenceWindow.style.display !== 'none';
@@ -2865,6 +2919,8 @@
     // Определение вида по фото: подсказка с вариантами, фото на сервере не сохраняется.
     // Результат показывается в этом же окне, поэтому следующий снимок можно выбрать сразу.
     function identifyPhoto(file) {
+        stopCamera();   // фото могли выбрать файлом при включённой камере
+        showCameraError('');
         identifyOutput.textContent = '';
         const preview = document.createElement('img');
         preview.className = 'identify-preview';
@@ -2877,6 +2933,7 @@
         resultBox.textContent = 'Определяем… Первый запрос может занять до минуты.';
         identifyOutput.append(preview, resultBox);
         if (identifyLabelText) identifyLabelText.textContent = 'Выбрать другой снимок';
+        if (identifyCameraLabel) identifyCameraLabel.textContent = 'Снять ещё раз';
         const body = new FormData();
         body.append('photo', file);
         fetch(identifyInput.dataset.identifyUrl, {
@@ -2897,6 +2954,98 @@
         identifyInput.addEventListener('change', () => {
             if (identifyInput.files.length) identifyPhoto(identifyInput.files[0]);
         });
+    }
+
+    // Съёмка камерой: превью с камеры в окне, по кнопке кадр уходит на то же определение,
+    // что и выбранный файл. getUserMedia работает только на HTTPS и на localhost.
+    function showCameraError(text) {
+        if (!identifyCameraError) return;
+        identifyCameraError.textContent = text;
+        identifyCameraError.style.display = text ? '' : 'none';
+    }
+
+    function cameraErrorText(error) {
+        const name = error && error.name;
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+            return 'Доступ к камере запрещён. Разрешите его в настройках браузера (значок слева от адреса) или выберите фото файлом.';
+        }
+        if (name === 'NotFoundError') {
+            return 'Камера не найдена. Выберите фото файлом.';
+        }
+        if (name === 'NotReadableError' || name === 'AbortError') {
+            return 'Камера занята другим приложением. Закройте его и попробуйте ещё раз.';
+        }
+        return 'Не удалось включить камеру. Выберите фото файлом.';
+    }
+
+    // Выключает камеру (гаснет индикатор) и возвращает на место результат определения.
+    function stopCamera() {
+        cameraRequestId++;   // отменяет запрос камеры, который ещё ждёт разрешения
+        if (cameraStream) {
+            cameraStream.getTracks().forEach(track => track.stop());
+            cameraStream = null;
+        }
+        if (!identifyCameraEl) return;
+        identifyVideo.srcObject = null;
+        identifyCameraEl.style.display = 'none';
+        identifyShootBtn.disabled = true;
+        identifyOutput.style.display = '';
+    }
+
+    function startCamera() {
+        showCameraError('');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showCameraError('Камера в этом браузере недоступна: нужен защищённый адрес (HTTPS или localhost). Выберите фото файлом.');
+            return;
+        }
+        stopCamera();
+        const requestId = ++cameraRequestId;
+        identifyCameraEl.style.display = '';
+        identifyOutput.style.display = 'none';   // прежний результат вернётся при отмене
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+            .then(stream => {
+                if (requestId !== cameraRequestId) {
+                    stream.getTracks().forEach(track => track.stop());
+                    return;
+                }
+                cameraStream = stream;
+                identifyVideo.srcObject = stream;
+                const playing = identifyVideo.play();
+                if (playing && playing.catch) playing.catch(() => {});
+            })
+            .catch(error => {
+                if (requestId !== cameraRequestId) return;
+                stopCamera();
+                showCameraError(cameraErrorText(error));
+            });
+    }
+
+    function takeCameraShot() {
+        const width = identifyVideo.videoWidth;
+        const height = identifyVideo.videoHeight;
+        if (!width || !height) return;
+        const scale = Math.min(1, CAMERA_MAX_SIDE / Math.max(width, height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+        canvas.getContext('2d').drawImage(identifyVideo, 0, 0, canvas.width, canvas.height);
+        identifyShootBtn.disabled = true;   // второе нажатие, пока кадр кодируется, не нужно
+        canvas.toBlob(blob => {
+            if (!blob) {
+                identifyShootBtn.disabled = false;
+                showCameraError('Не удалось сделать снимок. Попробуйте ещё раз.');
+                return;
+            }
+            identifyPhoto(new File([blob], 'camera.jpg', { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.92);
+    }
+
+    if (identifyCameraBtn) {
+        identifyCameraBtn.addEventListener('click', startCamera);
+        identifyShootBtn.addEventListener('click', takeCameraShot);
+        identifyCameraCancelBtn.addEventListener('click', stopCamera);
+        // Кнопка «Снять» доступна, только когда камера уже отдаёт кадр.
+        identifyVideo.addEventListener('loadedmetadata', () => { identifyShootBtn.disabled = false; });
     }
 
     // Поиск по названию и латинскому названию; «ё» приравниваем к «е».
