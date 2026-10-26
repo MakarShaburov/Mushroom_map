@@ -1,0 +1,23 @@
+<div class="season-month">
+    <div class="season-month-head">
+        <span><strong>{{ month_name }}</strong> <span class="season-month-sub">все годы вместе, {{ month_total }} {{ month_word }}</span></span>
+        <button type="button" class="season-month-close" aria-label="Закрыть отчёты месяца">✕</button>
+    </div>
+    <div class="season-bars season-bars-days" role="img" aria-label="Число отчётов по дням месяца">
+        {% for day in days %}
+            <div class="season-col" title="{{ day.tooltip }}">
+                <div class="season-bar-area">
+                    <div class="season-bar" style="height: {{ day.height_px }}px;">
+                        {% if day.plenty %}<span class="season-seg season-plenty" style="flex: {{ day.plenty }};"></span>{% endif %}
+                        {% if day.some %}<span class="season-seg season-some" style="flex: {{ day.some }};"></span>{% endif %}
+                        {% if day.none %}<span class="season-seg season-none" style="flex: {{ day.none }};"></span>{% endif %}
+                    </div>
+                </div>
+                <span class="season-label">{{ day.label }}</span>
+            </div>
+        {% endfor %}
+    </div>
+    <div class="spot-reports-list">
+        {% include 'spots/_report_rows.html' %}
+    </div>
+</div>

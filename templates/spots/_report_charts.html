@@ -11,7 +11,7 @@
         </div>
         <div class="season-bars" role="img" aria-label="Число отчётов по месяцам года">
             {% for month in seasonality.months %}
-                <div class="season-col{% if month.current %} season-col-current{% endif %}" title="{{ month.tooltip }}">
+                <button type="button" class="season-col{% if month.current %} season-col-current{% endif %}" data-month="{{ month.month }}" aria-pressed="false" title="{{ month.tooltip }}"{% if not month.total %} disabled{% endif %}>
                     <div class="season-bar-area">
                         {% if month.total %}<span class="season-count">{{ month.total }}</span>{% endif %}
                         <div class="season-bar" style="height: {{ month.height_px }}px;">
@@ -21,10 +21,10 @@
                         </div>
                     </div>
                     <span class="season-label">{{ month.label }}</span>
-                </div>
+                </button>
             {% endfor %}
         </div>
-        <p class="season-note">Высота столбца — число отчётов, а не количество грибов.</p>
+        <p class="season-note">Высота столбца — число отчётов, а не количество грибов. Нажмите на месяц, чтобы увидеть его отчёты.</p>
         {% if seasonality.best_months %}
             <p class="season-summary">Чаще всего грибы находили: <strong>{{ seasonality.best_months|join:", " }}</strong>.</p>
         {% elif seasonality.enough_data %}
@@ -32,6 +32,7 @@
         {% else %}
             <p class="season-summary">Отчётов пока мало ({{ seasonality.total }}), выводы о сезоне будут ненадёжными.</p>
         {% endif %}
+        <div class="season-month-detail" aria-live="polite"></div>
     </div>
 
     <div class="season-section">

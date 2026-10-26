@@ -15,7 +15,7 @@ from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
     SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport,
 )
-from .seasonality import build_seasonality
+from .seasonality import MONTH_NAMES, build_month_days, build_seasonality
 from .status import FOUND_RESULTS, STATUS_WINDOW_DAYS, compute_spot_status
 from .utils import ru_plural
 
@@ -396,6 +396,8 @@ def spot_reports_page(request, pk):
     ?kind=all|found|none — какие отчёты показывать, ?offset=N — с какого по счёту.
     Обычный запрос возвращает всю вкладку (фильтр-«чипы» с числами + список);
     с ?append=1 — только следующие строки списка для «Показать ещё».
+    ?month=1..12 — отчёты одного месяца всех лет (клик по столбцу графика сезонности):
+    блок с графиком по дням и списком; вместе с append — следующие строки этого списка.
     Открыт для всех, как и сами отчёты в карточке."""
     spot = get_object_or_404(MushroomSpot, pk=pk)
     kind = request.GET.get('kind', 'all')
@@ -405,9 +407,18 @@ def spot_reports_page(request, pk):
         offset = max(0, int(request.GET.get('offset', 0)))
     except ValueError:
         offset = 0
+    try:
+        month = int(request.GET.get('month', ''))
+    except ValueError:
+        month = None
+    if month is not None and not 1 <= month <= 12:
+        month = None
 
     queryset = spot.reports.select_related('author').prefetch_related('types')
-    if kind == 'found':
+    if month:
+        kind = 'all'   # в блоке месяца фильтр «Находили / Не находили» не действует
+        queryset = queryset.filter(visited_on__month=month)
+    elif kind == 'found':
         queryset = queryset.filter(result__in=FOUND_RESULTS)
     elif kind == 'none':
         queryset = queryset.filter(result=SpotReport.Result.NONE)
@@ -423,9 +434,20 @@ def spot_reports_page(request, pk):
         'reports': reports,
         'kind': kind,
         'next_offset': offset + REPORTS_PAGE_SIZE if has_more else None,
+        'month': month,
     }
     if request.GET.get('append') == '1':
         return render(request, 'spots/_report_rows.html', context)
+    if month:
+        days = build_month_days(spot.reports.filter(visited_on__month=month).only('visited_on', 'result'), month)
+        month_total = sum(day.total for day in days)
+        context.update({
+            'month_name': MONTH_NAMES[month - 1].capitalize(),
+            'month_total': month_total,
+            'month_word': ru_plural(month_total, ('отчёт', 'отчёта', 'отчётов')),
+            'days': days,
+        })
+        return render(request, 'spots/_report_month.html', context)
 
     counts = spot.reports.aggregate(
         total=Count('id'),

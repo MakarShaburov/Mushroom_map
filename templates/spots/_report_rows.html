@@ -1,4 +1,4 @@
 {% for report in reports %}{% include 'spots/_report_row.html' %}{% empty %}<p class="spot-card-empty">Отчётов в этой категории пока нет.</p>{% endfor %}
 {% if next_offset %}
-    <button type="button" class="spot-reports-load-more" data-kind="{{ kind }}" data-next-offset="{{ next_offset }}">Показать ещё</button>
+    <button type="button" class="spot-reports-load-more" data-kind="{{ kind }}"{% if month %} data-month="{{ month }}"{% endif %} data-next-offset="{{ next_offset }}">Показать ещё</button>
 {% endif %}

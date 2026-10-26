@@ -13,6 +13,7 @@
 когда сюда ходят, поэтому выводы о сезоне делаются только по находкам и только когда
 отчётов достаточно (MIN_REPORTS_FOR_SEASON).
 """
+import calendar
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -28,12 +29,18 @@ MIN_FINDS_FOR_MONTH = 2       # месяц называем «сезонным»
 TOP_MONTHS = 3                # сколько месяцев называть в выводе
 BAR_MAX_PX = 72               # высота самого высокого столбца
 BAR_MIN_PX = 4                # чтобы месяц с одним отчётом не пропадал
+DAY_BAR_MAX_PX = 56           # то же для графика по дням месяца: он ниже и теснее
 
 MONTH_SHORT = ('янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек')
 MONTH_NAMES = (
     'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
     'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь',
 )
+MONTH_GENITIVE = (
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+)
+NBSP = '\u00a0'   # пустая подпись должна занимать строку, иначе столбцы съедут по высоте
 
 # Строки графика «по времени»: сверху вниз, от лучшего результата к худшему.
 RESULT_ROWS = (('plenty', 'Много'), ('some', 'Немного'), ('none', 'Не нашли'))
@@ -47,6 +54,18 @@ class MonthBar:
     month: int
     label: str
     current: bool
+    plenty: int
+    some: int
+    none: int
+    total: int
+    height_px: int
+    tooltip: str
+
+
+@dataclass(frozen=True)
+class DayBar:
+    day: int
+    label: str      # подписываем не каждый день, иначе в узкой панели цифры слипаются
     plenty: int
     some: int
     none: int
@@ -93,13 +112,13 @@ def _report_word(n):
     return ru_plural(n, _REPORT_FORMS)
 
 
-def _month_tooltip(month, counts):
-    name = MONTH_NAMES[month - 1].capitalize()
+def _counts_tooltip(title, counts):
+    """Подсказка столбца: «Сентябрь: 3 отчёта (много: 1, немного: 1, не нашли: 1)»."""
     total = sum(counts.values())
     if not total:
-        return f'{name}: отчётов нет'
+        return f'{title}: отчётов нет'
     parts = [f'{RESULT_WORDS[code]}: {counts[code]}' for code, _ in RESULT_ROWS if counts[code]]
-    return f'{name}: {total} {_report_word(total)} ({", ".join(parts)})'
+    return f'{title}: {total} {_report_word(total)} ({", ".join(parts)})'
 
 
 def _next_month_start(day):
@@ -125,7 +144,8 @@ def build_seasonality(reports, today=None):
         months.append(MonthBar(
             month=month, label=MONTH_SHORT[month - 1], current=month == today.month,
             plenty=counts['plenty'], some=counts['some'], none=counts['none'],
-            total=total, height_px=height, tooltip=_month_tooltip(month, counts),
+            total=total, height_px=height,
+            tooltip=_counts_tooltip(MONTH_NAMES[month - 1].capitalize(), counts),
         ))
 
     enough_data = len(reports) >= MIN_REPORTS_FOR_SEASON
@@ -170,3 +190,29 @@ def build_seasonality(reports, today=None):
         timeline_total=timeline_total, timeline_word=_report_word(timeline_total),
         timeline_start=start, timeline_rows=rows, timeline_ticks=ticks,
     )
+
+
+def build_month_days(reports, month):
+    """График «по дням месяца»: отчёты этого месяца всех лет вместе, по числам.
+
+    Дней в месяце берём по невисокосному году, а 29 февраля добавляем, только если в этот
+    день есть отчёт — пустой хвост в графике февраля не нужен."""
+    reports = [r for r in reports if r.result in RESULT_WORDS and r.visited_on.month == month]
+    by_day = {}
+    for report in reports:
+        by_day.setdefault(report.visited_on.day, Counter())[report.result] += 1
+    days_count = max(calendar.monthrange(2025, month)[1], max(by_day, default=0))
+    max_total = max((sum(c.values()) for c in by_day.values()), default=0)
+
+    days = []
+    for day in range(1, days_count + 1):
+        counts = by_day.get(day, Counter())
+        total = sum(counts.values())
+        height = max(BAR_MIN_PX, round(total / max_total * DAY_BAR_MAX_PX)) if total else 0
+        days.append(DayBar(
+            day=day, label=str(day) if day == 1 or day % 5 == 0 else NBSP,
+            plenty=counts['plenty'], some=counts['some'], none=counts['none'],
+            total=total, height_px=height,
+            tooltip=_counts_tooltip(f'{day} {MONTH_GENITIVE[month - 1]}', counts),
+        ))
+    return days

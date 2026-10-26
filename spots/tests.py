@@ -11,7 +11,7 @@ from PIL import Image
 
 from . import identify
 from .models import MushroomSpot, MushroomType, SpotReport
-from .seasonality import build_seasonality
+from .seasonality import build_month_days, build_seasonality
 
 
 def png_upload(name='photo.png'):
@@ -215,6 +215,38 @@ class SeasonalityTests(TestCase):
         self.assertEqual(data.total, 0)
 
 
+class MonthDaysTests(TestCase):
+    def test_counts_by_day_across_years_and_ignores_other_months(self):
+        reports = [
+            fake_report(date(2024, 9, 12), 'plenty'),
+            fake_report(date(2025, 9, 12), 'some'),
+            fake_report(date(2025, 9, 12), 'none'),
+            fake_report(date(2025, 9, 30), 'some'),
+            fake_report(date(2025, 8, 12), 'plenty'),   # другой месяц
+        ]
+        days = build_month_days(reports, 9)
+        self.assertEqual(len(days), 30)
+        twelfth = days[11]
+        self.assertEqual((twelfth.plenty, twelfth.some, twelfth.none, twelfth.total), (1, 1, 1, 3))
+        self.assertIn('12 сентября: 3 отчёта', twelfth.tooltip)
+        self.assertEqual(twelfth.height_px, 56)
+        self.assertEqual(days[29].total, 1)
+        self.assertEqual(sum(d.total for d in days), 4)
+
+    def test_month_length_and_leap_day(self):
+        self.assertEqual(len(build_month_days([], 2)), 28)
+        self.assertEqual(len(build_month_days([], 12)), 31)
+        leap = build_month_days([fake_report(date(2024, 2, 29), 'some')], 2)
+        self.assertEqual(len(leap), 29)
+        self.assertEqual(leap[28].total, 1)
+
+    def test_only_some_days_are_labelled_and_empty_labels_keep_their_height(self):
+        days = build_month_days([], 7)
+        labelled = [d.day for d in days if d.label.strip()]
+        self.assertEqual(labelled, [1, 5, 10, 15, 20, 25, 30])
+        self.assertTrue(all(d.label for d in days))   # пустая подпись — неразрывный пробел
+
+
 class ReportsTabChartsTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user('tester', 't@example.com', 'pw')
@@ -237,4 +269,44 @@ class ReportsTabChartsTests(TestCase):
         # «Показать ещё» подгружает только строки списка, без графиков
         appended = self.client.get(self.url, {'kind': 'all', 'append': '1'})
         self.assertNotContains(appended, 'season-box')
+
+    def make_reports(self):
+        SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 9, 3), result='plenty')
+        SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2024, 9, 20), result='none')
+        SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 8, 15), result='some')
+
+    def test_month_param_returns_only_that_month_with_day_chart(self):
+        self.make_reports()
+        response = self.client.get(self.url, {'month': '9'})
+        self.assertContains(response, 'season-month')
+        self.assertContains(response, 'Сентябрь')
+        self.assertContains(response, '2 отчёта')
+        self.assertEqual([r.visited_on for r in response.context['reports']], [date(2025, 9, 3), date(2024, 9, 20)])
+        self.assertEqual(len(response.context['days']), 30)
+        self.assertNotContains(response, 'spot-reports-chip')   # это блок месяца, а не вся вкладка
+
+    def test_month_ignores_kind_filter_and_bad_values(self):
+        self.make_reports()
+        response = self.client.get(self.url, {'month': '9', 'kind': 'found'})
+        self.assertEqual(len(response.context['reports']), 2)
+        for bad in ('0', '13', 'abc', ''):
+            page = self.client.get(self.url, {'month': bad})
+            self.assertContains(page, 'spot-reports-chip', msg_prefix=f'month={bad!r}')
+
+    def test_month_list_is_paged_and_load_more_keeps_the_month(self):
+        for day in range(1, 26):
+            SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 9, day), result='some')
+        SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 8, 1), result='some')
+        first = self.client.get(self.url, {'month': '9'})
+        self.assertEqual(len(first.context['reports']), 20)
+        self.assertContains(first, 'data-month="9"')
+        more = self.client.get(self.url, {'month': '9', 'append': '1', 'offset': '20'})
+        self.assertEqual(len(more.context['reports']), 5)
+        self.assertNotContains(more, 'spot-reports-load-more')
+
+    def test_charts_have_clickable_month_columns_only_for_months_with_reports(self):
+        self.make_reports()
+        html = self.client.get(self.url).content.decode()
+        self.assertEqual(html.count('data-month="'), 12)
+        self.assertEqual(html.count(' disabled>'), 10)   # отчёты есть только в августе и сентябре
 

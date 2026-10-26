@@ -1513,7 +1513,29 @@
     .season-col {
         flex: 1;
         min-width: 0;
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        background: none;
+        color: inherit;
+        font: inherit;
         text-align: center;
+    }
+    /* Столбцы месяцев — кнопки; столбцы дней в блоке месяца — обычные div без клика. */
+    button.season-col:not(:disabled) {
+        cursor: pointer;
+    }
+    button.season-col:not(:disabled):hover,
+    button.season-col.active {
+        background: rgba(46, 160, 67, 0.14);
+    }
+    button.season-col:focus-visible {
+        outline: 2px solid var(--link);
+    }
+    .season-col.active .season-label {
+        border-top-color: var(--link);
+        color: var(--link);
+        font-weight: bold;
     }
     .season-bar-area {
         display: flex;
@@ -1549,6 +1571,40 @@
     .season-col-current .season-label {
         color: var(--link);
         font-weight: bold;
+    }
+    .season-month-detail:not(:empty) {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+    }
+    .season-month-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 4px;
+        font-size: 0.85em;
+    }
+    .season-month-sub {
+        color: var(--muted);
+    }
+    .season-month-close {
+        padding: 0 4px;
+        border: none;
+        background: none;
+        color: var(--muted);
+        font: inherit;
+        cursor: pointer;
+    }
+    .season-bars-days {
+        gap: 1px;
+        margin-bottom: 8px;
+    }
+    .season-bars-days .season-bar-area {
+        height: 62px;
+    }
+    .season-bars-days .season-label {
+        font-size: 0.6em;
     }
     .season-note {
         margin: 4px 0 0;
@@ -3229,7 +3285,8 @@
     function loadMoreReports(btn) {
         const body = btn.closest('.spot-reports-tab-body');
         btn.disabled = true;
-        fetch(`${body.dataset.url}?kind=${btn.dataset.kind}&append=1&offset=${btn.dataset.nextOffset}`)
+        const monthParam = btn.dataset.month ? `&month=${btn.dataset.month}` : '';
+        fetch(`${body.dataset.url}?kind=${btn.dataset.kind}&append=1&offset=${btn.dataset.nextOffset}${monthParam}`)
             .then((res) => {
                 if (!res.ok) throw new Error('request failed');
                 return res.text();
@@ -3240,6 +3297,42 @@
                 list.insertAdjacentHTML('beforeend', html);
             })
             .catch(() => { btn.disabled = false; });
+    }
+
+    // Столбец месяца в графике сезонности: под графиком открываются отчёты этого месяца,
+    // повторный клик по тому же столбцу (или ✕) закрывает их.
+    function toggleSeasonMonth(col) {
+        const body = col.closest('.spot-reports-tab-body');
+        const detail = body.querySelector('.season-month-detail');
+        const month = col.dataset.month;
+        const wasActive = col.classList.contains('active');
+        body.querySelectorAll('.season-col.active').forEach((other) => {
+            other.classList.remove('active');
+            other.setAttribute('aria-pressed', 'false');
+        });
+        if (wasActive) {
+            detail.dataset.month = '';
+            detail.textContent = '';
+            return;
+        }
+        col.classList.add('active');
+        col.setAttribute('aria-pressed', 'true');
+        detail.dataset.month = month;   // ответ на прежний клик не должен затереть новый
+        detail.textContent = 'Загрузка…';
+        fetch(`${body.dataset.url}?month=${month}`)
+            .then((res) => {
+                if (!res.ok) throw new Error('request failed');
+                return res.text();
+            })
+            .then((html) => {
+                if (detail.dataset.month !== month) return;
+                detail.innerHTML = html;
+                detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            })
+            .catch(() => {
+                if (detail.dataset.month !== month) return;
+                detail.textContent = 'Не удалось загрузить отчёты месяца. Нажмите на месяц ещё раз.';
+            });
     }
 
     // Один обработчик на контейнер карточки (он не пересоздаётся): работает и для
@@ -3263,6 +3356,17 @@
         const chip = e.target.closest('[data-reports-kind]');
         if (chip) {
             loadReportsTab(chip.closest('.spot-reports-tab-body'), chip.dataset.reportsKind, true);
+            return;
+        }
+        const monthCol = e.target.closest('button.season-col');
+        if (monthCol) {
+            toggleSeasonMonth(monthCol);
+            return;
+        }
+        const monthClose = e.target.closest('.season-month-close');
+        if (monthClose) {
+            const activeCol = monthClose.closest('.spot-reports-tab-body').querySelector('button.season-col.active');
+            if (activeCol) toggleSeasonMonth(activeCol);
             return;
         }
         const moreBtn = e.target.closest('.spot-reports-load-more');
