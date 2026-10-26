@@ -15,6 +15,7 @@ from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
     SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport,
 )
+from .seasonality import build_seasonality
 from .status import FOUND_RESULTS, STATUS_WINDOW_DAYS, compute_spot_status
 from .utils import ru_plural
 
@@ -432,6 +433,8 @@ def spot_reports_page(request, pk):
         none=Count('id', filter=Q(result=SpotReport.Result.NONE)),
     )
     context['counts'] = counts
+    # Графики сезонности всегда по всем отчётам места, а не по выбранному фильтру.
+    context['seasonality'] = build_seasonality(spot.reports.only('visited_on', 'result'))
     return render(request, 'spots/_reports_tab.html', context)
 
 

@@ -1,0 +1,60 @@
+{% load l10n %}
+<details class="season-box" open>
+    <summary>Сезонность и график отчётов</summary>
+
+    <div class="season-section">
+        <div class="season-title">По месяцам года <span>все годы вместе, {{ seasonality.total }} {{ seasonality.total_word }}</span></div>
+        <div class="season-legend">
+            <span><i class="season-plenty"></i>Много</span>
+            <span><i class="season-some"></i>Немного</span>
+            <span><i class="season-none"></i>Не нашли</span>
+        </div>
+        <div class="season-bars" role="img" aria-label="Число отчётов по месяцам года">
+            {% for month in seasonality.months %}
+                <div class="season-col{% if month.current %} season-col-current{% endif %}" title="{{ month.tooltip }}">
+                    <div class="season-bar-area">
+                        {% if month.total %}<span class="season-count">{{ month.total }}</span>{% endif %}
+                        <div class="season-bar" style="height: {{ month.height_px }}px;">
+                            {% if month.plenty %}<span class="season-seg season-plenty" style="flex: {{ month.plenty }};"></span>{% endif %}
+                            {% if month.some %}<span class="season-seg season-some" style="flex: {{ month.some }};"></span>{% endif %}
+                            {% if month.none %}<span class="season-seg season-none" style="flex: {{ month.none }};"></span>{% endif %}
+                        </div>
+                    </div>
+                    <span class="season-label">{{ month.label }}</span>
+                </div>
+            {% endfor %}
+        </div>
+        <p class="season-note">Высота столбца — число отчётов, а не количество грибов.</p>
+        {% if seasonality.best_months %}
+            <p class="season-summary">Чаще всего грибы находили: <strong>{{ seasonality.best_months|join:", " }}</strong>.</p>
+        {% elif seasonality.enough_data %}
+            <p class="season-summary">Находок пока слишком мало, чтобы назвать сезон.</p>
+        {% else %}
+            <p class="season-summary">Отчётов пока мало ({{ seasonality.total }}), выводы о сезоне будут ненадёжными.</p>
+        {% endif %}
+    </div>
+
+    <div class="season-section">
+        <div class="season-title">Отчёты за последний год <span>с {{ seasonality.timeline_start|date:"d.m.Y" }}</span></div>
+        {% if seasonality.timeline_total %}
+            <div class="season-tl" role="img" aria-label="Когда были сделаны отчёты за последний год">
+                {% for row in seasonality.timeline_rows %}
+                    <div class="season-tl-row">
+                        <span class="season-tl-label">{{ row.label }}</span>
+                        <div class="season-tl-track">
+                            {% for dot in row.dots %}<span class="season-dot season-dot-{{ dot.size }} season-{{ row.code }}" style="left: {{ dot.x|unlocalize }}%;" title="{{ dot.tooltip }}"></span>{% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+                <div class="season-tl-row">
+                    <span class="season-tl-label"></span>
+                    <div class="season-tl-track season-tl-axis">
+                        {% for tick in seasonality.timeline_ticks %}<span class="season-tick" style="left: {{ tick.x|unlocalize }}%;">{{ tick.label }}</span>{% endfor %}
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <p class="season-summary">За последний год отчётов нет.</p>
+        {% endif %}
+    </div>
+</details>

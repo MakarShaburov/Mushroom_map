@@ -1,4 +1,6 @@
+from datetime import date
 from io import BytesIO
+from types import SimpleNamespace
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -8,7 +10,8 @@ from django.urls import reverse
 from PIL import Image
 
 from . import identify
-from .models import MushroomType
+from .models import MushroomSpot, MushroomType, SpotReport
+from .seasonality import build_seasonality
 
 
 def png_upload(name='photo.png'):
@@ -122,3 +125,116 @@ class ReferenceIdentifyButtonTests(TestCase):
             self.assertContains(logged_in, 'id="identify-input"')
         with mock.patch('spots.identify.is_available', return_value=False):
             self.assertNotContains(self.client.get(url), 'id="scanner-toggle"')
+
+
+def fake_report(visited_on, result):
+    return SimpleNamespace(visited_on=visited_on, result=result)
+
+
+class SeasonalityTests(TestCase):
+    TODAY = date(2026, 10, 26)
+
+    def test_no_reports_gives_empty_charts(self):
+        data = build_seasonality([], today=self.TODAY)
+        self.assertEqual(data.total, 0)
+        self.assertFalse(data.enough_data)
+        self.assertEqual(data.best_months, [])
+        self.assertEqual([m.total for m in data.months], [0] * 12)
+        self.assertEqual(data.timeline_total, 0)
+
+    def test_months_count_all_years_together_and_split_by_result(self):
+        reports = [
+            fake_report(date(2024, 9, 10), 'plenty'),
+            fake_report(date(2025, 9, 3), 'some'),
+            fake_report(date(2025, 9, 20), 'none'),
+            fake_report(date(2026, 5, 1), 'some'),
+        ]
+        data = build_seasonality(reports, today=self.TODAY)
+        september = data.months[8]
+        self.assertEqual((september.plenty, september.some, september.none, september.total), (1, 1, 1, 3))
+        self.assertIn('Сентябрь: 3 отчёта', september.tooltip)
+        self.assertEqual(data.months[4].total, 1)
+
+    def test_bar_height_scales_to_busiest_month_and_keeps_single_report_visible(self):
+        reports = [fake_report(date(2025, 9, d), 'plenty') for d in range(1, 11)] + [fake_report(date(2025, 5, 1), 'some')]
+        data = build_seasonality(reports, today=self.TODAY)
+        self.assertEqual(data.months[8].height_px, 72)
+        self.assertEqual(data.months[4].height_px, 7)
+        self.assertEqual(data.months[0].height_px, 0)
+        tiny = build_seasonality(reports[:1] + [fake_report(date(2025, 5, 1), 'some')] * 40, today=self.TODAY)
+        self.assertEqual(tiny.months[8].height_px, 4)
+
+    def test_current_month_is_marked(self):
+        data = build_seasonality([], today=self.TODAY)
+        self.assertEqual([m.month for m in data.months if m.current], [10])
+
+    def test_best_months_need_enough_reports_and_repeated_finds(self):
+        few = [fake_report(date(2025, 9, d), 'plenty') for d in range(1, 5)]
+        self.assertEqual(build_seasonality(few, today=self.TODAY).best_months, [])
+        # пять отчётов, но по одной находке в месяц — сезона назвать нельзя
+        scattered = [fake_report(date(2025, m, 1), 'some') for m in (3, 5, 6, 8, 9)]
+        data = build_seasonality(scattered, today=self.TODAY)
+        self.assertTrue(data.enough_data)
+        self.assertEqual(data.best_months, [])
+
+    def test_best_months_are_top_three_by_finds_in_calendar_order(self):
+        reports = (
+            [fake_report(date(2025, 9, d), 'plenty') for d in range(1, 6)]       # сентябрь: 5
+            + [fake_report(date(2025, 8, d), 'some') for d in range(1, 4)]       # август: 3
+            + [fake_report(date(2025, 10, d), 'some') for d in range(1, 3)]      # октябрь: 2
+            + [fake_report(date(2025, 7, 1), 'plenty')]                          # июль: 1 находка — мало для сезона
+            + [fake_report(date(2025, 6, d), 'none') for d in range(1, 4)]       # «не нашли» не в счёт
+        )
+        data = build_seasonality(reports, today=self.TODAY)
+        self.assertEqual(data.best_months, ['август', 'сентябрь', 'октябрь'])
+
+    def test_timeline_covers_last_year_only_and_groups_same_day(self):
+        reports = [
+            fake_report(date(2026, 10, 26), 'plenty'),   # сегодня — правый край
+            fake_report(date(2026, 10, 26), 'plenty'),
+            fake_report(date(2025, 10, 26), 'none'),     # ровно год назад — левый край
+            fake_report(date(2025, 10, 25), 'some'),     # раньше окна
+        ]
+        data = build_seasonality(reports, today=self.TODAY)
+        self.assertEqual(data.timeline_total, 3)
+        rows = {row.code: row.dots for row in data.timeline_rows}
+        self.assertEqual([(d.x, d.size) for d in rows['plenty']], [(100.0, 2)])
+        self.assertEqual([d.x for d in rows['none']], [0.0])
+        self.assertEqual(rows['some'], [])
+        self.assertIn('26.10.2026', rows['plenty'][0].tooltip)
+        self.assertEqual(data.total, 4)   # в графике по месяцам учтены все годы
+
+    def test_timeline_ticks_are_month_starts_inside_window(self):
+        data = build_seasonality([], today=self.TODAY)
+        self.assertEqual(data.timeline_ticks[0].label, 'ноя')
+        self.assertEqual(data.timeline_ticks[-1].label, 'окт')
+        self.assertEqual(len(data.timeline_ticks), 12)
+
+    def test_unknown_results_are_ignored(self):
+        data = build_seasonality([fake_report(date(2025, 9, 1), 'weird')], today=self.TODAY)
+        self.assertEqual(data.total, 0)
+
+
+class ReportsTabChartsTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('tester', 't@example.com', 'pw')
+        self.spot = MushroomSpot.objects.create(
+            author=self.user, title='Опушка', description='-', latitude=55.0, longitude=37.0,
+        )
+        self.url = reverse('spots:spot_reports_page', args=[self.spot.pk])
+
+    def test_no_charts_without_reports(self):
+        response = self.client.get(self.url)
+        self.assertNotContains(response, 'season-box')
+
+    def test_charts_use_all_reports_even_when_filtered(self):
+        for day, result in ((1, 'plenty'), (2, 'none'), (3, 'some')):
+            SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 9, day), result=result)
+        response = self.client.get(self.url, {'kind': 'none'})
+        self.assertContains(response, 'season-box')
+        self.assertContains(response, '3 отчёта')
+        self.assertEqual(response.context['seasonality'].total, 3)
+        # «Показать ещё» подгружает только строки списка, без графиков
+        appended = self.client.get(self.url, {'kind': 'all', 'append': '1'})
+        self.assertNotContains(appended, 'season-box')
+

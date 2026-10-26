@@ -1463,6 +1463,143 @@
         opacity: 0.6;
         cursor: default;
     }
+    /* Графики сезонности во вкладке «Отчёты»: чистый HTML/CSS, без библиотек. Цвета результатов:
+       много / немного / не нашли — одинаковы в столбцах, точках и легенде. */
+    .season-box {
+        margin-bottom: 12px;
+        padding: 8px 10px 4px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+    }
+    .season-box > summary {
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+    .season-section {
+        margin-top: 10px;
+    }
+    .season-title {
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+    .season-title span {
+        color: var(--muted);
+        font-weight: normal;
+    }
+    .season-plenty { background: #2ea043; }
+    .season-some { background: #9ccc65; }
+    .season-none { background: #8b949e; }
+    .season-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin: 4px 0 2px;
+        color: var(--muted);
+        font-size: 0.75em;
+    }
+    .season-legend i {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        margin-right: 4px;
+        border-radius: 2px;
+    }
+    .season-bars {
+        display: flex;
+        gap: 3px;
+        align-items: flex-end;
+    }
+    .season-col {
+        flex: 1;
+        min-width: 0;
+        text-align: center;
+    }
+    .season-bar-area {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        align-items: center;
+        height: 92px;
+    }
+    .season-count {
+        color: var(--muted);
+        font-size: 0.7em;
+        line-height: 1.3;
+    }
+    .season-bar {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        border-radius: 3px 3px 0 0;
+        overflow: hidden;
+    }
+    .season-seg {
+        display: block;
+        min-height: 1px;
+    }
+    .season-label {
+        display: block;
+        margin-top: 2px;
+        padding-top: 2px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.7em;
+    }
+    .season-col-current .season-label {
+        color: var(--link);
+        font-weight: bold;
+    }
+    .season-note {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 0.75em;
+    }
+    .season-summary {
+        margin: 6px 0 0;
+        font-size: 0.85em;
+    }
+    .season-tl {
+        margin-top: 4px;
+    }
+    .season-tl-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .season-tl-label {
+        flex: 0 0 52px;
+        color: var(--muted);
+        font-size: 0.7em;
+    }
+    .season-tl-track {
+        position: relative;
+        flex: 1;
+        height: 20px;
+        margin: 0 6px;
+        border-bottom: 1px dashed var(--border);
+    }
+    .season-tl-axis {
+        height: 16px;
+        border-bottom: none;
+    }
+    .season-dot {
+        position: absolute;
+        top: 50%;
+        border-radius: 50%;
+        opacity: 0.85;
+        transform: translate(-50%, -50%);
+    }
+    .season-dot-1 { width: 7px; height: 7px; }
+    .season-dot-2 { width: 10px; height: 10px; }
+    .season-dot-3 { width: 13px; height: 13px; }
+    .season-tick {
+        position: absolute;
+        top: 2px;
+        color: var(--muted);
+        font-size: 0.65em;
+        transform: translateX(-50%);
+    }
     .status-dot {
         display: inline-block;
         width: 9px;
