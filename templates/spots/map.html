@@ -1577,6 +1577,11 @@
         padding-top: 8px;
         border-top: 1px solid var(--border);
     }
+    .season-day-detail:not(:empty) {
+        margin-top: 6px;
+        padding-top: 6px;
+        border-top: 1px solid var(--border);
+    }
     .season-month-head {
         display: flex;
         align-items: baseline;
@@ -3286,7 +3291,8 @@
         const body = btn.closest('.spot-reports-tab-body');
         btn.disabled = true;
         const monthParam = btn.dataset.month ? `&month=${btn.dataset.month}` : '';
-        fetch(`${body.dataset.url}?kind=${btn.dataset.kind}&append=1&offset=${btn.dataset.nextOffset}${monthParam}`)
+        const dayParam = btn.dataset.day ? `&day=${btn.dataset.day}` : '';
+        fetch(`${body.dataset.url}?kind=${btn.dataset.kind}&append=1&offset=${btn.dataset.nextOffset}${monthParam}${dayParam}`)
             .then((res) => {
                 if (!res.ok) throw new Error('request failed');
                 return res.text();
@@ -3335,6 +3341,43 @@
             });
     }
 
+    // Столбец дня в графике месяца: под ним открываются отчёты за это число во все годы,
+    // повторный клик по тому же столбцу закрывает их. Устроено так же, как выбор месяца.
+    function toggleSeasonDay(col) {
+        const body = col.closest('.spot-reports-tab-body');
+        const monthBlock = col.closest('.season-month');
+        const detail = monthBlock.querySelector('.season-day-detail');
+        const day = col.dataset.day;
+        const wasActive = col.classList.contains('active');
+        monthBlock.querySelectorAll('button.season-col.active').forEach((other) => {
+            other.classList.remove('active');
+            other.setAttribute('aria-pressed', 'false');
+        });
+        if (wasActive) {
+            detail.dataset.day = '';
+            detail.textContent = '';
+            return;
+        }
+        col.classList.add('active');
+        col.setAttribute('aria-pressed', 'true');
+        detail.dataset.day = day;   // ответ на прежний клик не должен затереть новый
+        detail.textContent = 'Загрузка…';
+        fetch(`${body.dataset.url}?month=${monthBlock.dataset.month}&day=${day}`)
+            .then((res) => {
+                if (!res.ok) throw new Error('request failed');
+                return res.text();
+            })
+            .then((html) => {
+                if (detail.dataset.day !== day) return;
+                detail.innerHTML = html;
+                detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            })
+            .catch(() => {
+                if (detail.dataset.day !== day) return;
+                detail.textContent = 'Не удалось загрузить отчёты дня. Нажмите на день ещё раз.';
+            });
+    }
+
     // Один обработчик на контейнер карточки (он не пересоздаётся): работает и для
     // строк, подгруженных во вкладке позже.
     document.getElementById('spot-card-content').addEventListener('click', (e) => {
@@ -3358,14 +3401,19 @@
             loadReportsTab(chip.closest('.spot-reports-tab-body'), chip.dataset.reportsKind, true);
             return;
         }
-        const monthCol = e.target.closest('button.season-col');
+        const monthCol = e.target.closest('button.season-col[data-month]');
         if (monthCol) {
             toggleSeasonMonth(monthCol);
             return;
         }
+        const dayCol = e.target.closest('button.season-col[data-day]');
+        if (dayCol) {
+            toggleSeasonDay(dayCol);
+            return;
+        }
         const monthClose = e.target.closest('.season-month-close');
         if (monthClose) {
-            const activeCol = monthClose.closest('.spot-reports-tab-body').querySelector('button.season-col.active');
+            const activeCol = monthClose.closest('.spot-reports-tab-body').querySelector('button.season-col[data-month].active');
             if (activeCol) toggleSeasonMonth(activeCol);
             return;
         }

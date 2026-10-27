@@ -275,32 +275,49 @@ class ReportsTabChartsTests(TestCase):
         SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2024, 9, 20), result='none')
         SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 8, 15), result='some')
 
-    def test_month_param_returns_only_that_month_with_day_chart(self):
+    def test_month_param_returns_day_chart_without_the_list(self):
         self.make_reports()
         response = self.client.get(self.url, {'month': '9'})
         self.assertContains(response, 'season-month')
         self.assertContains(response, 'Сентябрь')
         self.assertContains(response, '2 отчёта')
-        self.assertEqual([r.visited_on for r in response.context['reports']], [date(2025, 9, 3), date(2024, 9, 20)])
         self.assertEqual(len(response.context['days']), 30)
+        # отчёты показываются только по клику на день, а не сразу все
+        self.assertNotContains(response, 'spot-report-row')
         self.assertNotContains(response, 'spot-reports-chip')   # это блок месяца, а не вся вкладка
+        html = response.content.decode()
+        self.assertEqual(html.count('data-day="'), 30)
+        self.assertEqual(html.count(' disabled>'), 28)   # отчёты есть только 3 и 20 сентября
 
-    def test_month_ignores_kind_filter_and_bad_values(self):
+    def test_day_param_returns_reports_of_that_day_across_years(self):
         self.make_reports()
-        response = self.client.get(self.url, {'month': '9', 'kind': 'found'})
-        self.assertEqual(len(response.context['reports']), 2)
+        SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2024, 9, 3), result='some')
+        SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 10, 3), result='some')
+        response = self.client.get(self.url, {'month': '9', 'day': '3'})
+        self.assertContains(response, 'season-day')
+        self.assertContains(response, '3 сентября')
+        self.assertContains(response, '2 отчёта')
+        self.assertEqual([r.visited_on for r in response.context['reports']], [date(2025, 9, 3), date(2024, 9, 3)])
+
+    def test_month_and_day_ignore_kind_filter_and_bad_values(self):
+        self.make_reports()
+        found = self.client.get(self.url, {'month': '9', 'day': '20', 'kind': 'found'})
+        self.assertEqual(len(found.context['reports']), 1)   # «не нашёл» не отфильтровано
         for bad in ('0', '13', 'abc', ''):
             page = self.client.get(self.url, {'month': bad})
             self.assertContains(page, 'spot-reports-chip', msg_prefix=f'month={bad!r}')
+        # неверный день: показывается блок месяца; день без месяца игнорируется
+        self.assertContains(self.client.get(self.url, {'month': '9', 'day': '99'}), 'season-month')
+        self.assertContains(self.client.get(self.url, {'day': '3'}), 'spot-reports-chip')
 
-    def test_month_list_is_paged_and_load_more_keeps_the_month(self):
-        for day in range(1, 26):
-            SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 9, day), result='some')
-        SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 8, 1), result='some')
-        first = self.client.get(self.url, {'month': '9'})
+    def test_day_list_is_paged_and_load_more_keeps_month_and_day(self):
+        for year in range(2000, 2025):
+            SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(year, 9, 12), result='some')
+        SpotReport.objects.create(spot=self.spot, author=self.user, visited_on=date(2025, 9, 13), result='some')
+        first = self.client.get(self.url, {'month': '9', 'day': '12'})
         self.assertEqual(len(first.context['reports']), 20)
-        self.assertContains(first, 'data-month="9"')
-        more = self.client.get(self.url, {'month': '9', 'append': '1', 'offset': '20'})
+        self.assertContains(first, 'data-month="9" data-day="12"')
+        more = self.client.get(self.url, {'month': '9', 'day': '12', 'append': '1', 'offset': '20'})
         self.assertEqual(len(more.context['reports']), 5)
         self.assertNotContains(more, 'spot-reports-load-more')
 

@@ -15,7 +15,7 @@ from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
     SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport,
 )
-from .seasonality import MONTH_NAMES, build_month_days, build_seasonality
+from .seasonality import MONTH_GENITIVE, MONTH_NAMES, build_month_days, build_seasonality
 from .status import FOUND_RESULTS, STATUS_WINDOW_DAYS, compute_spot_status
 from .utils import ru_plural
 
@@ -396,8 +396,9 @@ def spot_reports_page(request, pk):
     ?kind=all|found|none — какие отчёты показывать, ?offset=N — с какого по счёту.
     Обычный запрос возвращает всю вкладку (фильтр-«чипы» с числами + список);
     с ?append=1 — только следующие строки списка для «Показать ещё».
-    ?month=1..12 — отчёты одного месяца всех лет (клик по столбцу графика сезонности):
-    блок с графиком по дням и списком; вместе с append — следующие строки этого списка.
+    ?month=1..12 — клик по столбцу графика сезонности: блок месяца (все годы вместе) с
+    графиком по дням, без списка. ?month=..&day=1..31 — клик по дню в этом графике: отчёты
+    за это число во все годы; вместе с append — следующие строки этого списка.
     Открыт для всех, как и сами отчёты в карточке."""
     spot = get_object_or_404(MushroomSpot, pk=pk)
     kind = request.GET.get('kind', 'all')
@@ -413,11 +414,31 @@ def spot_reports_page(request, pk):
         month = None
     if month is not None and not 1 <= month <= 12:
         month = None
+    try:
+        day = int(request.GET.get('day', ''))
+    except ValueError:
+        day = None
+    if month is None or (day is not None and not 1 <= day <= 31):
+        day = None   # день имеет смысл только вместе с месяцем
+
+    # Блок месяца — это график по дням без списка: строки отчётов подгружаются кликом по дню.
+    if month and not day and request.GET.get('append') != '1':
+        days = build_month_days(spot.reports.filter(visited_on__month=month).only('visited_on', 'result'), month)
+        month_total = sum(item.total for item in days)
+        return render(request, 'spots/_report_month.html', {
+            'month': month,
+            'month_name': MONTH_NAMES[month - 1].capitalize(),
+            'month_total': month_total,
+            'month_word': ru_plural(month_total, ('отчёт', 'отчёта', 'отчётов')),
+            'days': days,
+        })
 
     queryset = spot.reports.select_related('author').prefetch_related('types')
     if month:
-        kind = 'all'   # в блоке месяца фильтр «Находили / Не находили» не действует
+        kind = 'all'   # в блоках месяца и дня фильтр «Находили / Не находили» не действует
         queryset = queryset.filter(visited_on__month=month)
+        if day:
+            queryset = queryset.filter(visited_on__day=day)
     elif kind == 'found':
         queryset = queryset.filter(result__in=FOUND_RESULTS)
     elif kind == 'none':
@@ -435,19 +456,18 @@ def spot_reports_page(request, pk):
         'kind': kind,
         'next_offset': offset + REPORTS_PAGE_SIZE if has_more else None,
         'month': month,
+        'day': day,
     }
     if request.GET.get('append') == '1':
         return render(request, 'spots/_report_rows.html', context)
-    if month:
-        days = build_month_days(spot.reports.filter(visited_on__month=month).only('visited_on', 'result'), month)
-        month_total = sum(day.total for day in days)
+    if day:
+        day_total = queryset.count()
         context.update({
-            'month_name': MONTH_NAMES[month - 1].capitalize(),
-            'month_total': month_total,
-            'month_word': ru_plural(month_total, ('отчёт', 'отчёта', 'отчётов')),
-            'days': days,
+            'day_title': f'{day} {MONTH_GENITIVE[month - 1]}',
+            'day_total': day_total,
+            'day_word': ru_plural(day_total, ('отчёт', 'отчёта', 'отчётов')),
         })
-        return render(request, 'spots/_report_month.html', context)
+        return render(request, 'spots/_report_day.html', context)
 
     counts = spot.reports.aggregate(
         total=Count('id'),

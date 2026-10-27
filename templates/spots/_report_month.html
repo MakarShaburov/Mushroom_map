@@ -1,11 +1,11 @@
-<div class="season-month">
+<div class="season-month" data-month="{{ month }}">
     <div class="season-month-head">
         <span><strong>{{ month_name }}</strong> <span class="season-month-sub">все годы вместе, {{ month_total }} {{ month_word }}</span></span>
-        <button type="button" class="season-month-close" aria-label="Закрыть отчёты месяца">✕</button>
+        <button type="button" class="season-month-close" aria-label="Закрыть месяц">✕</button>
     </div>
     <div class="season-bars season-bars-days" role="img" aria-label="Число отчётов по дням месяца">
         {% for day in days %}
-            <div class="season-col" title="{{ day.tooltip }}">
+            <button type="button" class="season-col" data-day="{{ day.day }}" aria-pressed="false" title="{{ day.tooltip }}"{% if not day.total %} disabled{% endif %}>
                 <div class="season-bar-area">
                     <div class="season-bar" style="height: {{ day.height_px }}px;">
                         {% if day.plenty %}<span class="season-seg season-plenty" style="flex: {{ day.plenty }};"></span>{% endif %}
@@ -14,10 +14,9 @@
                     </div>
                 </div>
                 <span class="season-label">{{ day.label }}</span>
-            </div>
+            </button>
         {% endfor %}
     </div>
-    <div class="spot-reports-list">
-        {% include 'spots/_report_rows.html' %}
-    </div>
+    <p class="season-note">Нажмите на день, чтобы увидеть его отчёты.</p>
+    <div class="season-day-detail" aria-live="polite"></div>
 </div>
