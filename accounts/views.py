@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from spots.models import CommentVote, MushroomSpot, SpotRating
+from spots.models import CommentVote, MushroomSpot, SpotRating, has_visited_author
 from spots.views import PANEL_HEADER, render_spot_panel_response
 
 from .forms import ProfileBioForm, SignUpForm
@@ -160,7 +160,13 @@ def _user_card_context(request, person):
     })
     if viewer.is_authenticated and not is_self:
         my_rating = UserRating.objects.filter(rater=viewer, rated_user=person).first()
+        can_rate = has_visited_author(viewer, person)
         context.update({
+            'can_rate': can_rate,
+            'rate_hint': '' if can_rate else (
+                'У этого пользователя пока нет мест.' if not spots
+                else 'Оценить можно после посещения места этого пользователя.'
+            ),
             'my_score': my_rating.score if my_rating else 0,
             'i_blocked': UserBlock.objects.filter(blocker=viewer, blocked=person).exists(),
             'i_reported': UserReport.objects.filter(reporter=viewer, reported=person).exists(),
@@ -221,13 +227,18 @@ def public_profile(request, username):
 @require_POST
 def rate_user(request, username):
     """Оценка пользователя (1-5) другим пользователем, обычно после
-    посещения его грибного места. Нельзя оценить самого себя."""
+    посещения его грибного места. Нельзя оценить самого себя, а также того, чьё место
+    вы не посещали (нет вашего отчёта): так оценки пользователей нельзя набить с новых
+    аккаунтов, не оставив следов на его местах."""
     rated_user = get_object_or_404(User, username=username)
     spot_id = request.POST.get('spot_id')
     score = request.POST.get('score')
     spot = MushroomSpot.objects.filter(pk=spot_id).first() if spot_id else None
 
-    can_rate = rated_user != request.user and not _is_blocked_by(request.user, rated_user)
+    can_rate = (
+        rated_user != request.user and not _is_blocked_by(request.user, rated_user)
+        and has_visited_author(request.user, rated_user)
+    )
     if can_rate and score and score.isdigit() and 1 <= int(score) <= 5:
         UserRating.objects.update_or_create(
             rater=request.user,

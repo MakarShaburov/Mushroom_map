@@ -31,7 +31,7 @@
 
         {% if user.is_authenticated and not is_self %}
             <div class="user-card-actions">
-                <button type="button" class="user-card-rate-btn">{% if my_score %}★ Ваша оценка: {{ my_score }}{% else %}Оценить{% endif %}</button>
+                <button type="button" class="user-card-rate-btn"{% if not can_rate %} disabled title="{{ rate_hint }}"{% endif %}>{% if my_score %}★ Ваша оценка: {{ my_score }}{% else %}Оценить{% endif %}</button>
                 <div class="user-card-menu-wrap">
                     <button type="button" class="user-card-menu-btn" title="Ещё">⋯</button>
                     <div class="profile-menu user-card-menu" style="display: none;">
@@ -48,6 +48,7 @@
                     </div>
                 </div>
             </div>
+            {% if not can_rate %}<p class="user-card-rate-hint">{{ rate_hint }}</p>{% endif %}
         {% elif is_self %}
             <p class="spot-card-login-hint" style="text-align: center;">Это вы.</p>
         {% else %}

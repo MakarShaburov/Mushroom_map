@@ -3,14 +3,18 @@ from io import BytesIO
 from types import SimpleNamespace
 from unittest import mock
 
+from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
+from accounts.models import UserRating
+from accounts.utils import trusted_rating, vote_weight
+
 from . import identify
-from .models import MushroomSpot, MushroomType, SpotReport
+from .models import MushroomSpot, MushroomType, SpotComment, SpotRating, SpotReport
 from .seasonality import build_month_days, build_seasonality
 
 
@@ -125,6 +129,10 @@ class ReferenceIdentifyButtonTests(TestCase):
             self.assertContains(logged_in, 'id="identify-input"')
         with mock.patch('spots.identify.is_available', return_value=False):
             self.assertNotContains(self.client.get(url), 'id="scanner-toggle"')
+
+
+# Хеширование паролей в create_user — самое медленное место этих тестов; пароли тут не проверяются.
+FAST_HASHER = override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
 
 
 def fake_report(visited_on, result):
@@ -326,4 +334,232 @@ class ReportsTabChartsTests(TestCase):
         html = self.client.get(self.url).content.decode()
         self.assertEqual(html.count('data-month="'), 12)
         self.assertEqual(html.count(' disabled>'), 10)   # отчёты есть только в августе и сентябре
+
+
+class VoteWeightTests(TestCase):
+    def test_unrated_user_has_neutral_weight(self):
+        self.assertEqual(vote_weight(0), 1.0)
+        self.assertEqual(vote_weight(0, 0), 1.0)
+
+    def test_weight_range_without_count(self):
+        self.assertEqual(vote_weight(1), 0.5)
+        self.assertEqual(vote_weight(3), 1.0)
+        self.assertEqual(vote_weight(5), 1.5)
+
+    def test_low_rated_user_weighs_less_than_unrated(self):
+        # раньше оценённый на «1» весил больше неоценённого (1,4 против 1)
+        self.assertLess(vote_weight(1.0, 1), vote_weight(0, 0))
+
+    def test_trust_grows_slowly_with_number_of_ratings(self):
+        self.assertAlmostEqual(trusted_rating(5, 1), 3.5)
+        weights = [vote_weight(5, n) for n in (0, 1, 3, 10, 30)]
+        self.assertEqual(weights, sorted(weights))
+        self.assertAlmostEqual(weights[1], 1.125)          # одна оценка почти ничего не даёт
+        self.assertGreater(weights[-1], 1.4)               # тридцать — близко к максимуму
+        self.assertLess(vote_weight(1, 30), 0.6)
+
+
+@FAST_HASHER
+class SpotRatingRulesTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.author = User.objects.create_user('author', 'a@example.com', 'pw')
+        self.visitor = User.objects.create_user('visitor', 'v@example.com', 'pw')
+        self.stranger = User.objects.create_user('stranger', 's@example.com', 'pw')
+        self.spot = MushroomSpot.objects.create(
+            author=self.author, title='Опушка', description='-', latitude=55.0, longitude=37.0,
+        )
+        SpotReport.objects.create(spot=self.spot, author=self.visitor, visited_on=date(2025, 9, 1), result='none')
+
+    def rate(self, user, score='5'):
+        self.client.force_login(user)
+        return self.client.post(reverse('spots:spot_rate', args=[self.spot.pk]), {'score': score})
+
+    def test_only_visitors_can_rate_and_not_the_author(self):
+        self.rate(self.stranger)
+        self.rate(self.author)
+        self.assertEqual(SpotRating.objects.count(), 0)
+        self.rate(self.visitor, '4')
+        self.assertEqual(list(SpotRating.objects.values_list('user__username', 'score')), [('visitor', 4)])
+
+    def test_block_reasons(self):
+        self.assertEqual(self.spot.rating_block_reason(self.author), 'author')
+        self.assertEqual(self.spot.rating_block_reason(self.stranger), 'no_visit')
+        self.assertIsNone(self.spot.rating_block_reason(self.visitor))
+
+    def test_report_with_no_mushrooms_still_counts_as_a_visit(self):
+        # «не нашёл» — тоже посещение: оценить место можно и без урожая
+        self.assertEqual(SpotReport.objects.get(author=self.visitor).result, 'none')
+        self.assertIsNone(self.spot.rating_block_reason(self.visitor))
+
+    def test_review_without_rating_still_saves_the_comment(self):
+        self.client.force_login(self.stranger)
+        response = self.client.post(
+            reverse('spots:spot_review_create', args=[self.spot.pk]), {'score': '5', 'text': 'Красивый лес'},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(SpotRating.objects.count(), 0)
+        self.assertEqual(SpotComment.objects.get().text, 'Красивый лес')
+
+    def test_review_from_a_visitor_saves_rating_and_comment(self):
+        self.client.force_login(self.visitor)
+        self.client.post(reverse('spots:spot_review_create', args=[self.spot.pk]), {'score': '5', 'text': 'Был'})
+        self.assertEqual(SpotRating.objects.get().score, 5)
+        self.assertEqual(SpotComment.objects.count(), 1)
+
+    def test_card_shows_stars_only_to_those_who_can_rate(self):
+        url = reverse('spots:spot_search_card', args=[self.spot.pk])
+        self.client.force_login(self.visitor)
+        visitor_card = self.client.get(url)
+        self.assertContains(visitor_card, 'spot-card-review-stars')
+        self.assertContains(visitor_card, 'data-can-rate="1"')
+        self.client.force_login(self.stranger)
+        stranger_card = self.client.get(url)
+        self.assertNotContains(stranger_card, 'spot-card-review-stars')
+        self.assertContains(stranger_card, 'после отчёта о посещении')
+        self.assertContains(stranger_card, 'data-can-rate="0"')
+        self.client.force_login(self.author)
+        self.assertContains(self.client.get(url), 'Своё место оценить нельзя')
+
+
+@FAST_HASHER
+class SpotAverageRatingTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.author = User.objects.create_user('author', 'a@example.com', 'pw')
+        self.users = [User.objects.create_user(f'rater{i}', f'r{i}@example.com', 'pw') for i in range(3)]
+        self.spot = MushroomSpot.objects.create(
+            author=self.author, title='Опушка', description='-', latitude=55.0, longitude=37.0,
+        )
+
+    def test_no_ratings_means_no_average(self):
+        self.assertIsNone(self.spot.average_rating)
+        self.assertEqual(self.spot.ratings_count, 0)
+
+    def test_single_vote_does_not_give_a_perfect_rating(self):
+        SpotRating.objects.create(spot=self.spot, user=self.users[0], score=5)
+        self.assertEqual(self.spot.average_rating, 4.0)    # (2·3,5 + 5) / 3
+        self.assertEqual(self.spot.ratings_count, 1)
+
+    def test_many_votes_approach_the_real_average(self):
+        for user in self.users:
+            SpotRating.objects.create(spot=self.spot, user=user, score=5)
+        self.assertEqual(self.spot.average_rating, 4.4)    # (7 + 15) / 5
+
+    def test_authors_own_old_rating_is_not_counted(self):
+        SpotRating.objects.create(spot=self.spot, user=self.author, score=5)
+        self.assertIsNone(self.spot.average_rating)
+        self.assertEqual(self.spot.ratings_count, 0)
+        SpotRating.objects.create(spot=self.spot, user=self.users[0], score=5)
+        self.assertEqual(self.spot.average_rating, 4.0)
+        self.assertEqual(self.spot.ratings_count, 1)
+
+    def test_trusted_rater_weighs_more_than_an_unrated_one(self):
+        trusted, newcomer = self.users[0], self.users[1]
+        trusted.profile.rating, trusted.profile.rating_count = 5.0, 30
+        trusted.profile.save()
+        SpotRating.objects.create(spot=self.spot, user=trusted, score=5)
+        SpotRating.objects.create(spot=self.spot, user=newcomer, score=1)
+        equal_weights = (2 * 3.5 + 5 + 1) / 4
+        self.assertGreater(self.spot.average_rating, equal_weights)
+
+    def test_fresh_fake_accounts_cannot_boost_trust(self):
+        # пять подставных оценок «5» дают сглаженный рейтинг 4,25 и вес 1,31 (максимум 1,5);
+        # раньше одна такая оценка сразу давала вес 3
+        ally = self.users[0]
+        for i in range(5):
+            fan = get_user_model().objects.create_user(f'fan{i}', f'f{i}@example.com', 'pw')
+            UserRating.objects.create(rater=fan, rated_user=ally, score=5)
+        ally.profile.recalculate_rating()
+        self.assertEqual((ally.profile.rating, ally.profile.rating_count), (5.0, 5))
+        self.assertAlmostEqual(vote_weight(ally.profile.rating, ally.profile.rating_count), 1.3125)
+        self.assertLess(vote_weight(5.0, 1), 1.15)   # одна подставная оценка почти ничего не даёт
+
+
+@FAST_HASHER
+class UserRatingRulesTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.owner = User.objects.create_user('owner', 'o@example.com', 'pw')
+        self.visitor = User.objects.create_user('visitor', 'v@example.com', 'pw')
+        self.stranger = User.objects.create_user('stranger', 's@example.com', 'pw')
+        self.spot = MushroomSpot.objects.create(
+            author=self.owner, title='Опушка', description='-', latitude=55.0, longitude=37.0,
+        )
+        self.url = reverse('accounts:rate_user', args=['owner'])
+
+    def visit(self, user):
+        SpotReport.objects.create(spot=self.spot, author=user, visited_on=date(2025, 9, 1), result='some')
+
+    def test_user_can_be_rated_only_after_visiting_his_spot(self):
+        self.client.force_login(self.stranger)
+        self.client.post(self.url, {'score': '5'})
+        self.assertEqual(UserRating.objects.count(), 0)
+        self.visit(self.visitor)
+        self.client.force_login(self.visitor)
+        self.client.post(self.url, {'score': '4'})
+        self.assertEqual(UserRating.objects.get().score, 4)
+        profile = get_user_model().objects.get(username='owner').profile
+        self.assertEqual((profile.rating, profile.rating_count), (4.0, 1))
+
+    def test_cannot_rate_yourself_even_after_reporting_on_own_spot(self):
+        self.visit(self.owner)
+        self.client.force_login(self.owner)
+        self.client.post(self.url, {'score': '5'})
+        self.assertEqual(UserRating.objects.count(), 0)
+
+    def test_rating_can_be_changed_and_count_stays(self):
+        self.visit(self.visitor)
+        self.client.force_login(self.visitor)
+        self.client.post(self.url, {'score': '4'})
+        self.client.post(self.url, {'score': '2'})
+        profile = get_user_model().objects.get(username='owner').profile
+        self.assertEqual((profile.rating, profile.rating_count), (2.0, 1))
+
+    def test_user_card_explains_why_rating_is_unavailable(self):
+        card_url = reverse('accounts:user_card', args=['owner'])
+        self.client.force_login(self.stranger)
+        card = self.client.get(card_url)
+        self.assertContains(card, 'Оценить можно после посещения места этого пользователя')
+        self.assertContains(card, 'user-card-rate-btn" disabled')
+        self.visit(self.stranger)
+        card = self.client.get(card_url)
+        self.assertNotContains(card, 'Оценить можно после посещения')
+        self.assertNotContains(card, 'user-card-rate-btn" disabled')
+
+    def test_user_without_spots_says_so(self):
+        self.client.force_login(self.stranger)
+        card = self.client.get(reverse('accounts:user_card', args=['visitor']))
+        self.assertContains(card, 'У этого пользователя пока нет мест')
+
+
+@FAST_HASHER
+class UserRatingAdminTests(TestCase):
+    """Модератор удаляет накрученные оценки в админке — рейтинг должен пересчитаться."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.target = User.objects.create_user('target', 't@example.com', 'pw')
+        self.admin_user = User.objects.create_superuser('boss', 'b@example.com', 'pw')
+        self.model_admin = admin.site._registry[UserRating]
+        self.request = RequestFactory().get('/')
+        self.request.user = self.admin_user
+        for i, score in enumerate((5, 5, 1)):
+            rater = User.objects.create_user(f'rater{i}', f'r{i}@example.com', 'pw')
+            UserRating.objects.create(rater=rater, rated_user=self.target, score=score)
+        self.target.profile.recalculate_rating()
+
+    def profile(self):
+        return get_user_model().objects.get(username='target').profile
+
+    def test_deleting_one_rating_recalculates(self):
+        self.assertEqual(self.profile().rating_count, 3)
+        self.model_admin.delete_model(self.request, UserRating.objects.get(score=1))
+        self.assertEqual((self.profile().rating, self.profile().rating_count), (5.0, 2))
+
+    def test_bulk_delete_recalculates(self):
+        self.model_admin.delete_queryset(self.request, UserRating.objects.filter(score=5))
+        self.assertEqual((self.profile().rating, self.profile().rating_count), (1.0, 1))
+        self.model_admin.delete_queryset(self.request, UserRating.objects.all())
+        self.assertEqual((self.profile().rating, self.profile().rating_count), (0.0, 0))
 

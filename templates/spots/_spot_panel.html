@@ -22,7 +22,7 @@
     <p>Рейтинг места: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок, с учётом веса голосов)</p>
     <p><a href="{% url 'spots:spot_detail' spot.pk %}">🗺 Открыть отдельно (с построением маршрута) →</a></p>
 
-    {% if user.is_authenticated %}
+    {% if can_rate_spot %}
     <form method="post" action="{% url 'spots:spot_rate' spot.pk %}" class="panel-ajax-form">
         {% csrf_token %}
         <label for="panel-score-{{ spot.pk }}">Ваша оценка места (1-5):</label>
@@ -37,7 +37,7 @@
 
     <h3>Оценить автора места</h3>
     <p>Рейтинг пользователя {{ spot.author.username }}: {{ spot.author.profile.rating }}</p>
-    {% if user.is_authenticated and user != spot.author %}
+    {% if can_rate_author %}
     <form method="post" action="{% url 'accounts:rate_user' spot.author.username %}" class="panel-ajax-form">
         {% csrf_token %}
         <input type="hidden" name="spot_id" value="{{ spot.pk }}">

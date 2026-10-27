@@ -7,6 +7,8 @@
     data-spot-title="{{ spot.title }}"
     data-spot-photo="{% if spot_photos %}{{ spot_photos.0.image.url }}{% endif %}"
     data-spot-my-score="{{ my_score }}"
+    data-can-rate="{% if can_rate %}1{% else %}0{% endif %}"
+    data-rate-hint="{{ rate_hint }}"
     data-status-code="{{ status.code }}"
     data-status-label="{{ status.label }}"
     data-last-found-days="{{ status.last_found_days|default_if_none:'' }}"
@@ -115,12 +117,16 @@
         </div>
 
         {% if user.is_authenticated %}
-            <p class="spot-review-prompt">Оцените и напишите комментарий</p>
-            <div class="spot-review-stars" id="spot-card-review-stars">
-                {% for i in "12345" %}
-                    <button type="button" class="spot-review-star{% if forloop.counter <= my_score %} filled{% endif %}" data-score="{{ forloop.counter }}" title="Оценить на {{ forloop.counter }}">★</button>
-                {% endfor %}
-            </div>
+            {% if can_rate %}
+                <p class="spot-review-prompt">Оцените и напишите комментарий</p>
+                <div class="spot-review-stars" id="spot-card-review-stars">
+                    {% for i in "12345" %}
+                        <button type="button" class="spot-review-star{% if forloop.counter <= my_score %} filled{% endif %}" data-score="{{ forloop.counter }}" title="Оценить на {{ forloop.counter }}">★</button>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="spot-card-login-hint">{{ rate_hint }} Комментарий можно оставить и так.</p>
+            {% endif %}
         {% else %}
             <p class="spot-card-login-hint"><a href="{% url 'accounts:login' %}" data-auth-open="login">Войдите</a>, чтобы оценить и оставить комментарий.</p>
         {% endif %}

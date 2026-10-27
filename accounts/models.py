@@ -15,6 +15,9 @@ class Profile(models.Model):
     )
     bio = models.TextField('О себе', blank=True)
     rating = models.FloatField('Рейтинг пользователя', default=0.0)
+    # Сколько оценок лежит в основе рейтинга: от него зависит, насколько рейтингу
+    # можно доверять при расчёте веса голоса (accounts.utils.trusted_rating).
+    rating_count = models.PositiveIntegerField('Число оценок пользователя', default=0)
 
     def __str__(self):
         return f'Профиль {self.user.username}'
@@ -24,9 +27,10 @@ class Profile(models.Model):
         оценок (1-5), выставленных ему другими пользователями напрямую
         (UserRating). Рейтинг мест на этот расчёт не влияет — это
         отдельная, независимая система."""
-        agg = self.user.received_user_ratings.aggregate(avg=models.Avg('score'))
+        agg = self.user.received_user_ratings.aggregate(avg=models.Avg('score'), n=models.Count('id'))
         self.rating = round(agg['avg'], 2) if agg['avg'] is not None else 0.0
-        self.save(update_fields=['rating'])
+        self.rating_count = agg['n']
+        self.save(update_fields=['rating', 'rating_count'])
 
 
 class UserRating(models.Model):

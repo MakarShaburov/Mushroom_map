@@ -13,7 +13,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 from . import identify
 from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
-    SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport,
+    SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport, has_visited_author,
 )
 from .seasonality import MONTH_GENITIVE, MONTH_NAMES, build_month_days, build_seasonality
 from .status import FOUND_RESULTS, STATUS_WINDOW_DAYS, compute_spot_status
@@ -29,6 +29,11 @@ MAX_COMMENT_PHOTOS = 10
 REPORTS_IN_CARD = 50          # сколько последних отчётов выводим в карточке места
 REPORTS_PAGE_SIZE = 20        # отчётов за раз во вкладке «Отчёты»
 REPORT_NOTE_MAX = 300
+# Подсказки вместо звёзд, когда оценить место нельзя (причины — MushroomSpot.rating_block_reason).
+RATE_HINTS = {
+    'author': 'Своё место оценить нельзя.',
+    'no_visit': 'Оценить место можно после отчёта о посещении.',
+}
 REPORT_MAX_BACKDATE_DAYS = STATUS_WINDOW_DAYS  # отчёт можно внести задним числом не глубже
 REPORT_RESULT_ICONS = {'plenty': '🍄', 'some': '🧺', 'none': '🚫'}
 
@@ -133,6 +138,11 @@ def _panel_context(request, spot):
 
     return {
         'spot': spot,
+        'can_rate_spot': request.user.is_authenticated and spot.rating_block_reason(request.user) is None,
+        'can_rate_author': (
+            request.user.is_authenticated and request.user != spot.author
+            and has_visited_author(request.user, spot.author)
+        ),
         'user_rating_given': user_rating_given,
         'comments': comments,
         'type_groups': group_types_by_category(spot.sorted_mushroom_types()),
@@ -157,9 +167,11 @@ def _spot_card_context(request, spot):
     ratings_word = ru_plural(spot.ratings_count, ('оценка', 'оценки', 'оценок'))
     my_score = 0
     my_rating = None
+    rate_reason = None
     if request.user.is_authenticated:
         my_rating = spot.ratings.filter(user=request.user).first()
         my_score = my_rating.score if my_rating else 0
+        rate_reason = spot.rating_block_reason(request.user)
 
     comments = list(spot.comments.select_related('author').prefetch_related('photos').all())
     scores_by_user = {r.user_id: r.score for r in spot.ratings.all()}
@@ -223,6 +235,8 @@ def _spot_card_context(request, spot):
         'spot_photos': spot_photos,
         'rounded_rating': rounded_rating,
         'ratings_word': ratings_word,
+        'can_rate': rate_reason is None and request.user.is_authenticated,
+        'rate_hint': RATE_HINTS.get(rate_reason, ''),
         'my_score': my_score,
         'my_rating': my_rating,
         'comments': comments,
@@ -300,10 +314,12 @@ def mushroom_type_card(request, pk):
 @require_POST
 def spot_review_create(request, pk):
     """Сохраняет оценку и (опционально) комментарий с фото одним действием —
-    модалка «Как вам это место?» на вкладке «Обзор» в окне поиска."""
+    модалка «Как вам это место?» на вкладке «Обзор» в окне поиска. Оценку принимаем
+    только от тех, кто может оценить место (см. rating_block_reason); комментарий
+    можно оставить и без оценки."""
     spot = get_object_or_404(MushroomSpot, pk=pk)
     score = request.POST.get('score')
-    if score and score.isdigit() and 1 <= int(score) <= 5:
+    if score and score.isdigit() and 1 <= int(score) <= 5 and spot.rating_block_reason(request.user) is None:
         SpotRating.objects.update_or_create(
             spot=spot, user=request.user, defaults={'score': int(score)},
         )
@@ -573,7 +589,7 @@ def spot_create(request):
 def spot_rate(request, pk):
     spot = get_object_or_404(MushroomSpot, pk=pk)
     score = request.POST.get('score')
-    if score and score.isdigit() and 1 <= int(score) <= 5:
+    if score and score.isdigit() and 1 <= int(score) <= 5 and spot.rating_block_reason(request.user) is None:
         SpotRating.objects.update_or_create(
             spot=spot, user=request.user, defaults={'score': int(score)},
         )

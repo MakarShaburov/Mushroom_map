@@ -6,6 +6,12 @@ from django.db import models
 
 from accounts.utils import vote_weight
 
+# Средняя оценка места сглаживается к «ничьей» оценке, чтобы один голос не давал 5,0:
+# к настоящим оценкам добавляются SPOT_PRIOR_VOTES голосов обычного веса со значением
+# SPOT_PRIOR_MEAN. Одна оценка в 5 звёзд даёт 4,0, пять — около 4,6.
+SPOT_PRIOR_MEAN = 3.5
+SPOT_PRIOR_VOTES = 2
+
 
 class MushroomCategory(models.Model):
     """Категория грибов (благородные, съедобные, ядовитые и т.д.).
@@ -141,30 +147,50 @@ class MushroomSpot(models.Model):
 
         return sorted(types, key=sort_key)
 
-    @property
-    def average_rating(self):
-        """Средний рейтинг места, взвешенный по рейтингу того, кто
-        оценивал: чем выше рейтинг пользователя, тем весомее его
-        голос (см. accounts.utils.vote_weight)."""
+    def _counted_ratings(self):
+        """Оценки, которые идут в рейтинг: оценка автором собственного места не считается
+        (новые такие оценки не принимаются, но старые в базе могли остаться)."""
         if 'ratings' in getattr(self, '_prefetched_objects_cache', {}):
             # Оценки уже предзагружены (prefetch_related('ratings__user__profile')),
             # например для списка мест в профиле — лишних запросов не делаем.
             ratings = self.ratings.all()
         else:
             ratings = self.ratings.select_related('user__profile').all()
+        return [r for r in ratings if r.user_id != self.author_id]
+
+    @property
+    def average_rating(self):
+        """Средний рейтинг места: каждый голос взвешен по доверию к тому, кто
+        оценивал (accounts.utils.vote_weight), и всё сглажено к нейтральной
+        оценке, чтобы одна-две оценки не давали «идеальный» рейтинг."""
+        ratings = self._counted_ratings()
         if not ratings:
             return None
-        weighted_sum = 0.0
-        total_weight = 0.0
+        weighted_sum = SPOT_PRIOR_VOTES * SPOT_PRIOR_MEAN
+        total_weight = float(SPOT_PRIOR_VOTES)
         for r in ratings:
-            weight = vote_weight(r.user.profile.rating)
+            profile = r.user.profile
+            weight = vote_weight(profile.rating, profile.rating_count)
             weighted_sum += r.score * weight
             total_weight += weight
-        return round(weighted_sum / total_weight, 2) if total_weight else None
+        return round(weighted_sum / total_weight, 2)
 
     @property
     def ratings_count(self):
-        return self.ratings.count()
+        return len(self._counted_ratings())
+
+    def rating_block_reason(self, user):
+        """Почему user не может оценить это место: None — может; 'author' — это его
+        собственное место; 'no_visit' — у него нет отчёта о посещении этого места.
+
+        Оценка привязана к посещению: так оценить место, где не был, или подставить
+        оценки с новых аккаунтов можно только ценой настоящих отчётов, которые видны
+        всем в истории места."""
+        if user.pk == self.author_id:
+            return 'author'
+        if not self.reports.filter(author=user).exists():
+            return 'no_visit'
+        return None
 
 
 def mushroom_type_image_upload_path(instance, filename):
@@ -393,3 +419,10 @@ class PhotoLike(models.Model):
 
     def __str__(self):
         return f'{self.user} ❤ {self.content_type.model}#{self.object_id}'
+
+
+def has_visited_author(visitor, author):
+    """Был ли visitor на местах author: есть его отчёт о посещении хотя бы одного из них.
+    Условие, чтобы оценить пользователя (accounts.views.rate_user)."""
+    return SpotReport.objects.filter(author=visitor, spot__author=author).exists()
+

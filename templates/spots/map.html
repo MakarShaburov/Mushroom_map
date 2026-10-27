@@ -1318,6 +1318,17 @@
         font-weight: bold;
         cursor: pointer;
     }
+    .user-card-rate-btn:disabled {
+        background: var(--border);
+        color: var(--muted);
+        cursor: default;
+    }
+    .user-card-rate-hint {
+        margin: -8px 0 14px;
+        color: var(--muted);
+        font-size: 0.85em;
+        text-align: center;
+    }
     .user-card-menu-wrap {
         position: relative;
         flex-shrink: 0;
@@ -2451,8 +2462,9 @@
                     <img id="review-modal-photo" class="review-modal-photo" alt="">
                 </div>
 
-                <h2 class="review-modal-title">Как вам это место?</h2>
+                <h2 class="review-modal-title" id="review-modal-title">Как вам это место?</h2>
                 <p id="review-modal-spot-title" style="margin: -8px 0 16px; color: var(--muted);"></p>
+                <p id="review-modal-rate-hint" style="display: none; margin: 0 0 12px; color: var(--muted);"></p>
 
                 <div class="review-modal-stars" id="review-modal-stars">
                     {% for i in "12345" %}
@@ -2892,7 +2904,13 @@
         const writeReviewBtn = content.querySelector('#spot-write-review-btn');
         if (writeReviewBtn && spotCardEl) {
             writeReviewBtn.addEventListener('click', () => {
-                openReviewModal(spotCardEl.dataset.spotId, spotCardEl.dataset.spotTitle, spotCardEl.dataset.spotPhoto);
+                openReviewModal(
+                    spotCardEl.dataset.spotId,
+                    spotCardEl.dataset.spotTitle,
+                    spotCardEl.dataset.spotPhoto,
+                    spotCardEl.dataset.canRate === '1',
+                    spotCardEl.dataset.rateHint,
+                );
                 setReviewModalScore(parseInt(spotCardEl.dataset.spotMyScore || '0', 10));
             });
         }
@@ -2906,6 +2924,7 @@
                         spotCardEl.dataset.spotId,
                         spotCardEl.dataset.spotTitle,
                         spotCardEl.dataset.spotPhoto,
+                        true,   // звёзды в «Обзоре» показываются, только когда оценить можно
                     );
                     setReviewModalScore(parseInt(btn.dataset.score, 10));
                 });
@@ -4377,6 +4396,7 @@
     const reviewModalForm = document.getElementById('review-modal-form');
     const reviewModalSaveBtn = document.getElementById('review-modal-save');
     let reviewModalSpotId = null;
+    let reviewModalCanRate = true;   // false — оценить нельзя (нет посещения / своё место), остаётся отзыв без звёзд
     const REVIEW_MODAL_MAX_PHOTOS = 10;
     let reviewModalFiles = [];
 
@@ -4423,8 +4443,14 @@
         btn.addEventListener('click', () => setReviewModalScore(parseInt(btn.dataset.score, 10)));
     });
 
-    function openReviewModal(spotId, title, photoUrl) {
+    function openReviewModal(spotId, title, photoUrl, canRate, rateHint) {
         reviewModalSpotId = spotId;
+        reviewModalCanRate = canRate !== false;
+        document.getElementById('review-modal-title').textContent = reviewModalCanRate ? 'Как вам это место?' : 'Напишите отзыв';
+        reviewModalStarsWrap.style.display = reviewModalCanRate ? '' : 'none';
+        const rateHintEl = document.getElementById('review-modal-rate-hint');
+        rateHintEl.textContent = reviewModalCanRate ? '' : rateHint || '';
+        rateHintEl.style.display = reviewModalCanRate ? 'none' : '';
         document.getElementById('review-modal-spot-title').textContent = title || '';
         const photoWrap = document.getElementById('review-modal-photo-wrap');
         const photoImg = document.getElementById('review-modal-photo');
@@ -4458,7 +4484,9 @@
 
     reviewModalForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        if (!reviewModalSpotId || parseInt(reviewModalScoreInput.value, 10) < 1) return;
+        if (!reviewModalSpotId) return;
+        // С оценкой — нужна хотя бы одна звезда; без неё (оценить нельзя) — нужен текст отзыва.
+        if (reviewModalCanRate ? parseInt(reviewModalScoreInput.value, 10) < 1 : reviewModalTextInput.value.trim() === '') return;
         reviewModalSaveBtn.disabled = true;
         const formData = new FormData(reviewModalForm);
         reviewModalFiles.forEach((file) => formData.append('images', file));
