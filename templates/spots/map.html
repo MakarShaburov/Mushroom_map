@@ -2221,8 +2221,110 @@
         font-weight: bold;
     }
 </style>
+<style>
+    .map-canvas {
+        height: 80vh;
+        width: 100%;
+    }
+    .sheet-handle {
+        display: none;
+    }
+
+    /* Телефон: карта на весь экран под верхней панелью, а панель поиска и все карточки
+       (место, профиль, фильтры, маршрут) — нижняя шторка, как в Яндекс и Google Картах.
+       Три положения: свёрнута (.collapsed — видна только строка поиска), половина (55%
+       карты, по умолчанию) и во весь рост (.sheet-full). Число 55% есть и в JS
+       (sheetClearancePx) — чтобы метка выбранного места не оказывалась под шторкой. */
+    @media (max-width: 640px) {
+        main { padding: 0; }
+        .map-canvas {
+            height: calc(100vh - var(--nav-h));
+            height: calc(100dvh - var(--nav-h));
+        }
+        .search-panel {
+            top: auto;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            max-width: none;
+            max-height: 55%;
+            border-radius: 16px 16px 0 0;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.25);
+            transition: max-height 0.2s ease, height 0.2s ease;
+        }
+        .search-panel.wide {
+            width: 100%;
+        }
+        .search-panel.sheet-full {
+            /* Во весь рост — это именно высота, а не потолок: даже с коротким содержимым шторка
+               растягивается, иначе жест вверх выглядел бы сломанным. Сверху остаётся полоска
+               карты с кнопками. */
+            height: calc(100% - 56px);
+            max-height: calc(100% - 56px);
+        }
+        .search-panel.collapsed {
+            max-height: none;
+        }
+        .sheet-handle {
+            display: flex;
+            flex-shrink: 0;
+            justify-content: center;
+            padding: 10px 0 4px;
+            cursor: grab;
+            touch-action: none;   /* вертикальный жест на ручке тянет шторку, а не страницу */
+        }
+        .sheet-handle::before {
+            content: "";
+            width: 44px;
+            height: 5px;
+            border-radius: 3px;
+            background: var(--border);
+        }
+        #search-panel-header {
+            padding: 4px 12px 10px;
+        }
+        #search-panel-body {
+            padding-bottom: 20px;
+            overscroll-behavior: contain;
+        }
+        /* Кнопка фильтров переезжает в правый верхний угол карты; «свернуть» заменяет ручка.
+           !important — потому что setSearchPanelWide ставит right инлайном под десктопную панель. */
+        .search-panel-tabs {
+            top: 28px;
+            right: 10px !important;
+        }
+        #search-panel-toggle {
+            display: none;
+        }
+        .search-panel-tab-btn {
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            font-size: 16px;
+        }
+        /* На телефоне масштабируют щипком; кнопки +/− только занимают место. */
+        .leaflet-control-zoom {
+            display: none;
+        }
+        /* Подпись источника карт (обязательна) уходит наверх, чтобы её не закрывала шторка. */
+        .leaflet-bottom.leaflet-right {
+            top: 0;
+            bottom: auto;
+        }
+        .reference-window {
+            top: 56px;
+            left: 8px;
+            right: 8px;
+            width: auto;
+            max-width: none;
+            max-height: calc(100% - 64px);
+            z-index: 1002;   /* поверх шторки */
+        }
+    }
+</style>
 <div style="position: relative;">
-    <div id="map" style="height: 80vh; width: 100%;"></div>
+    <div id="map" class="map-canvas"></div>
     <div id="map-dim" class="map-dim"></div>
 
     <div class="map-topbar-left">
@@ -2289,6 +2391,7 @@
     </div>
 
     <div id="search-panel" class="search-panel">
+        <div id="sheet-handle" class="sheet-handle" role="button" tabindex="0" aria-label="Раскрыть или свернуть панель"></div>
         <div id="search-panel-header">
             <div class="search-header-row">
                 <div class="search-input-wrap">
@@ -2595,6 +2698,11 @@
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 <script>
     const map = L.map('map').setView([55.75, 37.62], 10); // старт: Москва и область
+    const phoneMq = window.matchMedia('(max-width: 640px)');
+    // Сколько карты закрывает шторка в половинном положении (55% высоты карты, как в CSS).
+    function sheetClearancePx() {
+        return phoneMq.matches ? Math.round(document.getElementById('map').clientHeight * 0.55) : 0;
+    }
 
     const MAP_TILE_URLS = {
         light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key={{ carto_api_key }}',
@@ -2934,6 +3042,7 @@
 
     function openSpotSearchCard(spotId) {
         setSearchPanelCollapsed(false);
+        searchPanel.classList.remove('sheet-full');
         setSearchPanelWide(false);
         showView('spot');
         document.getElementById('spot-card-content').innerHTML = '<p>Загрузка…</p>';
@@ -3785,7 +3894,12 @@
                 item.style.cursor = 'pointer';
                 item.querySelector('a').addEventListener('click', (ev) => {
                     ev.preventDefault();
-                    map.setView([entry.data.latitude, entry.data.longitude], 14);
+                    let target = L.latLng(entry.data.latitude, entry.data.longitude);
+                    if (phoneMq.matches) {
+                        // центр карты ниже метки на полвысоты шторки — метка окажется посреди видимой части
+                        target = map.unproject(map.project(target, 14).add([0, sheetClearancePx() / 2]), 14);
+                    }
+                    map.setView(target, 14);
                     openSpotSearchCard(entry.data.id);
                 });
                 resultsBox.appendChild(item);
@@ -3826,6 +3940,12 @@
                         setRoutePoint(routePickingField, { lat: spot.latitude, lng: spot.longitude, label: spot.title });
                         return;
                     }
+                    if (phoneMq.matches) {
+                        map.panInside(marker.getLatLng(), {
+                            paddingTopLeft: [24, 70],
+                            paddingBottomRight: [24, sheetClearancePx() + 24],
+                        });
+                    }
                     openSpotSearchCard(spot.id);
                 });
                 marker.on('contextmenu', (e) => {
@@ -3845,16 +3965,84 @@
     const searchPanel = document.getElementById('search-panel');
     const searchPanelToggle = document.getElementById('search-panel-toggle');
 
-    function setSearchPanelCollapsed(collapsed) {
+    function setSearchPanelCollapsed(collapsed, persist = true) {
         searchPanel.classList.toggle('collapsed', collapsed);
+        if (collapsed) searchPanel.classList.remove('sheet-full');
         searchPanelToggle.textContent = collapsed ? '►' : '◄';
-        localStorage.setItem('searchPanelCollapsed', collapsed ? '1' : '0');
+        if (persist) localStorage.setItem('searchPanelCollapsed', collapsed ? '1' : '0');
     }
 
-    setSearchPanelCollapsed(localStorage.getItem('searchPanelCollapsed') === '1');
+    // На телефоне первый визит начинается со свёрнутой шторки: сначала карта, а не список.
+    const storedCollapsed = localStorage.getItem('searchPanelCollapsed');
+    setSearchPanelCollapsed(storedCollapsed === null ? phoneMq.matches : storedCollapsed === '1', storedCollapsed !== null);
 
     searchPanelToggle.addEventListener('click', () => {
         setSearchPanelCollapsed(!searchPanel.classList.contains('collapsed'));
+    });
+
+    // --- Нижняя шторка на телефоне: тап по ручке переключает положение, жест тянет ---
+    // Положения: 'peek' (свёрнута), 'half', 'full'. Ручка видна только на телефоне (CSS).
+    const sheetHandle = document.getElementById('sheet-handle');
+    const SHEET_DRAG_PX = 40;   // сдвиг жестом, после которого шторка переходит в соседнее положение
+
+    function sheetState() {
+        if (searchPanel.classList.contains('collapsed')) return 'peek';
+        return searchPanel.classList.contains('sheet-full') ? 'full' : 'half';
+    }
+
+    function setSheetState(state) {
+        setSearchPanelCollapsed(state === 'peek');
+        searchPanel.classList.toggle('sheet-full', state === 'full');
+    }
+
+    function cycleSheet() {
+        // свёрнута → половина → во весь рост → половина
+        const state = sheetState();
+        setSheetState(state === 'peek' ? 'half' : state === 'half' ? 'full' : 'half');
+    }
+
+    let sheetDrag = null;
+    sheetHandle.addEventListener('pointerdown', (e) => {
+        sheetDrag = { startY: e.clientY, startHeight: searchPanel.getBoundingClientRect().height, moved: false };
+        sheetHandle.setPointerCapture(e.pointerId);
+    });
+    sheetHandle.addEventListener('pointermove', (e) => {
+        if (!sheetDrag) return;
+        const dy = e.clientY - sheetDrag.startY;
+        if (Math.abs(dy) > 6) sheetDrag.moved = true;
+        // Пока тянем, шторка следует за пальцем (у свёрнутой тела нет — она просто перескочит).
+        if (sheetDrag.moved && sheetState() !== 'peek') {
+            const mapHeight = document.getElementById('map').clientHeight;
+            searchPanel.style.transition = 'none';
+            searchPanel.style.maxHeight = 'none';
+            searchPanel.style.height = Math.max(80, Math.min(mapHeight - 56, sheetDrag.startHeight - dy)) + 'px';
+        }
+    });
+    function endSheetDrag(e, cancelled) {
+        if (!sheetDrag) return;
+        const { startY, moved } = sheetDrag;
+        sheetDrag = null;
+        searchPanel.style.transition = '';
+        searchPanel.style.maxHeight = '';
+        searchPanel.style.height = '';
+        if (cancelled) return;
+        if (!moved) { cycleSheet(); return; }
+        const dy = e.clientY - startY;
+        const state = sheetState();
+        if (dy <= -SHEET_DRAG_PX) setSheetState(state === 'peek' ? 'half' : 'full');
+        else if (dy >= SHEET_DRAG_PX) setSheetState(state === 'full' ? 'half' : 'peek');
+    }
+    sheetHandle.addEventListener('pointerup', (e) => endSheetDrag(e, false));
+    sheetHandle.addEventListener('pointercancel', (e) => endSheetDrag(e, true));
+    sheetHandle.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            cycleSheet();
+        }
+    });
+    // Тап по строке поиска у свёрнутой шторки раскрывает её: сразу видно результаты.
+    document.getElementById('search-text').addEventListener('focus', () => {
+        if (phoneMq.matches && searchPanel.classList.contains('collapsed')) setSearchPanelCollapsed(false);
     });
 
     // --- Переключение "Места" / "Фильтры" / "Маршрут" внутри панели ---

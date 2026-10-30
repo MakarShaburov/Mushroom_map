@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Грибные места{% endblock %}</title>
     <script>
         // Применяем сохранённую тему до отрисовки страницы, чтобы избежать
@@ -39,6 +40,24 @@
         main { padding: 20px; }
         a { color: var(--link); }
         input, select, textarea, button { font-family: inherit; }
+
+        /* Телефон. Верхняя панель — одна строка фиксированной высоты (на ней считается высота
+           карты), лишнее прокручивается вбок. Поля ввода 16px: меньше — iOS приближает
+           страницу при фокусе. */
+        @media (max-width: 640px) {
+            :root { --nav-h: 48px; }
+            nav {
+                height: var(--nav-h);
+                box-sizing: border-box;
+                padding: 0 12px;
+                gap: 14px;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            nav > * { flex-shrink: 0; }
+            main { padding: 12px; }
+            input, select, textarea { font-size: 16px; }
+        }
 
         .auth-modal-overlay {
             position: fixed;

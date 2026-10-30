@@ -563,3 +563,18 @@ class UserRatingAdminTests(TestCase):
         self.model_admin.delete_queryset(self.request, UserRating.objects.all())
         self.assertEqual((self.profile().rating, self.profile().rating_count), (0.0, 0))
 
+
+class MobileLayoutTests(TestCase):
+    """Разметка, на которую опирается телефонная вёрстка (сама вёрстка проверяется в браузере)."""
+
+    def test_every_page_declares_a_mobile_viewport(self):
+        for name in ('spots:map', 'accounts:login'):
+            response = self.client.get(reverse(name))
+            self.assertContains(response, '<meta name="viewport" content="width=device-width, initial-scale=1">', msg_prefix=name)
+
+    def test_map_page_has_sheet_handle_and_css_class_instead_of_inline_height(self):
+        response = self.client.get(reverse('spots:map'))
+        self.assertContains(response, 'id="sheet-handle"')
+        self.assertContains(response, 'class="map-canvas"')
+        self.assertNotContains(response, 'height: 80vh; width: 100%;')   # высоту теперь задаёт CSS (и телефонная вёрстка)
+
