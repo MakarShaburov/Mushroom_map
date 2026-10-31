@@ -35,8 +35,99 @@
             --muted: #a0a0a0;
         }
         body { font-family: sans-serif; margin: 0; background: var(--bg); color: var(--text); }
-        nav { padding: 10px 20px; background: var(--nav-bg); color: var(--nav-text); display: flex; gap: 16px; align-items: center; }
+        :root { --nav-h: 52px; }
+
+        /* Верхняя панель: слева логотип, справа действия. Высота фиксирована: от неё считается
+           высота карты на телефоне. Меню пользователя — <details>, работает без JS (скрипт
+           внизу лишь закрывает его по клику снаружи и по Escape). */
+        nav {
+            height: var(--nav-h);
+            box-sizing: border-box;
+            padding: 0 20px;
+            background: var(--nav-bg);
+            color: var(--nav-text);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
         nav a { color: var(--nav-text); text-decoration: none; }
+        .nav-logo { font-weight: bold; font-size: 17px; white-space: nowrap; }
+        .nav-actions { display: flex; align-items: center; gap: 10px; }
+        .nav-link { padding: 8px 10px; border-radius: 8px; }
+        .nav-link:hover { background: rgba(255, 255, 255, 0.12); }
+        .nav-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            border-radius: 999px;
+            white-space: nowrap;
+            font-size: 14px;
+        }
+        .nav-btn:hover { background: rgba(255, 255, 255, 0.14); }
+        nav a.nav-btn-solid { background: var(--nav-text); border-color: var(--nav-text); color: var(--nav-bg); font-weight: bold; }
+        nav a.nav-btn-solid:hover { background: rgba(255, 255, 255, 0.85); }
+        .nav-label-short { display: none; }
+        nav a:focus-visible, .nav-user summary:focus-visible { outline: 2px solid var(--nav-text); outline-offset: 2px; }
+
+        .nav-user { position: relative; }
+        .nav-user summary {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 3px 10px 3px 3px;
+            border-radius: 999px;
+            cursor: pointer;
+            list-style: none;
+        }
+        .nav-user summary::-webkit-details-marker { display: none; }
+        .nav-user summary:hover, .nav-user[open] summary { background: rgba(255, 255, 255, 0.14); }
+        .nav-avatar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--nav-text);
+            color: var(--nav-bg);
+            font-weight: bold;
+        }
+        .nav-username { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+        .nav-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            z-index: 2500;   /* выше карты и её панелей (1000), ниже окон входа (3000) */
+            min-width: 210px;
+            padding: 6px;
+            background: var(--panel-bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        .nav-menu-head { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+        .nav-menu-head span { color: var(--muted); font-size: 0.85em; }
+        .nav-menu a, .nav-menu button {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 10px 12px;
+            border: none;
+            border-radius: 8px;
+            background: none;
+            color: var(--text);
+            font: inherit;
+            text-align: left;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .nav-menu a:hover, .nav-menu button:hover { background: var(--border); }
+        .nav-menu a:focus-visible, .nav-menu button:focus-visible { outline: 2px solid var(--link); }
+        .nav-menu form { margin: 0; }
         main { padding: 20px; }
         a { color: var(--link); }
         input, select, textarea, button { font-family: inherit; }
@@ -46,15 +137,14 @@
            страницу при фокусе. */
         @media (max-width: 640px) {
             :root { --nav-h: 48px; }
-            nav {
-                height: var(--nav-h);
-                box-sizing: border-box;
-                padding: 0 12px;
-                gap: 14px;
-                overflow-x: auto;
-                white-space: nowrap;
-            }
-            nav > * { flex-shrink: 0; }
+            nav { padding: 0 12px; gap: 8px; }
+            .nav-logo { font-size: 15px; }
+            .nav-actions { gap: 6px; }
+            .nav-label-long { display: none; }
+            .nav-label-short { display: inline; }
+            .nav-btn { padding: 6px 12px; }
+            .nav-username { display: none; }   /* имя видно в самом меню; в строке остаётся аватар */
+            .nav-user summary { padding: 2px; }
             main { padding: 12px; }
             input, select, textarea { font-size: 16px; }
         }
@@ -146,19 +236,33 @@
     </style>
 </head>
 <body>
-    <nav>
-        <a href="{% url 'spots:map' %}">🍄 Грибные места</a>
-        {% if user.is_authenticated %}
-            <a href="{% url 'spots:spot_create' %}">Добавить место</a>
-            <a href="{% url 'accounts:profile' %}">{{ user.username }} (рейтинг: {{ user.profile.rating }})</a>
-            <form action="{% url 'accounts:logout' %}" method="post" style="display:inline;">
-                {% csrf_token %}
-                <button type="submit">Выйти</button>
-            </form>
-        {% else %}
-            <a href="{% url 'accounts:login' %}" data-auth-open="login">Войти</a>
-            <a href="{% url 'accounts:signup' %}" data-auth-open="signup">Регистрация</a>
-        {% endif %}
+    <nav aria-label="Главное меню">
+        <a class="nav-logo" href="{% url 'spots:map' %}">🍄 Грибные места</a>
+        <div class="nav-actions">
+            {% if user.is_authenticated %}
+                <a class="nav-btn" href="{% url 'spots:spot_create' %}"><span aria-hidden="true">＋</span><span class="nav-label-long">Добавить место</span><span class="nav-label-short">Добавить</span></a>
+                <details class="nav-user">
+                    <summary aria-label="Меню пользователя {{ user.username }}">
+                        <span class="nav-avatar">{{ user.username|first|upper }}</span>
+                        <span class="nav-username">{{ user.username }}</span>
+                    </summary>
+                    <div class="nav-menu">
+                        <div class="nav-menu-head">
+                            <strong>{{ user.username }}</strong>
+                            <span>{% if user.profile.rating_count %}★ {{ user.profile.rating|floatformat:1 }}{% else %}Пока нет оценок{% endif %}</span>
+                        </div>
+                        <a href="{% url 'accounts:profile' %}">Мой профиль</a>
+                        <form action="{% url 'accounts:logout' %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit">Выйти</button>
+                        </form>
+                    </div>
+                </details>
+            {% else %}
+                <a class="nav-link" href="{% url 'accounts:login' %}" data-auth-open="login">Войти</a>
+                <a class="nav-btn nav-btn-solid" href="{% url 'accounts:signup' %}" data-auth-open="signup">Регистрация</a>
+            {% endif %}
+        </div>
     </nav>
     <main>
         {% block content %}{% endblock %}
@@ -263,5 +367,21 @@
             })();
         </script>
     {% endif %}
+    <script>
+        // Меню пользователя в верхней панели (<details>) закрывается по клику снаружи и по Escape.
+        (function () {
+            const menu = document.querySelector('details.nav-user');
+            if (!menu) return;
+            document.addEventListener('click', function (e) {
+                if (menu.open && !menu.contains(e.target)) menu.open = false;
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && menu.open) {
+                    menu.open = false;
+                    menu.querySelector('summary').focus();
+                }
+            });
+        })();
+    </script>
 </body>
 </html>

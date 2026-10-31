@@ -1697,12 +1697,82 @@
         color: var(--muted);
         font-size: 0.85em;
     }
-    .spot-status-line {
+    /* Карточка места в списке поиска: название и оценка, плашка статуса, чипы видов. Кликабельна
+       вся карточка. Цвета плашек статуса — те же, что у меток на карте (STATUS_COLORS). */
+    .spot-list-item {
+        display: block;
+        box-sizing: border-box;
+        margin: 0 0 8px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--bg);
+        cursor: pointer;
+    }
+    .spot-list-item:hover {
+        border-color: var(--link);
+    }
+    .spot-list-item:focus-visible {
+        outline: 2px solid var(--link);
+        outline-offset: 1px;
+    }
+    .spot-list-head {
         display: flex;
-        align-items: center;
-        margin-top: 2px;
-        color: var(--muted);
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+    }
+    .spot-list-title {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        font-size: 15px;
+        font-weight: bold;
+    }
+    .spot-list-rating {
+        flex-shrink: 0;
         font-size: 0.85em;
+        white-space: nowrap;
+    }
+    .spot-list-rating .star {
+        color: #e6a23c;
+    }
+    .spot-list-rating-none {
+        color: var(--muted);
+    }
+    .spot-status-chip {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 6px;
+        padding: 3px 10px 3px 8px;
+        border-radius: 999px;
+        font-size: 0.8em;
+        font-weight: 600;
+    }
+    .spot-status-chip .status-dot {
+        margin-right: 6px;
+    }
+    .chip-today { background: rgba(63, 185, 80, 0.16); }
+    .chip-recent { background: rgba(139, 195, 74, 0.2); }
+    .chip-old { background: rgba(230, 162, 60, 0.2); }
+    .chip-empty { background: rgba(229, 83, 75, 0.16); }
+    .chip-no_data { background: rgba(139, 148, 158, 0.18); color: var(--muted); }
+    .spot-type-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 6px;
+    }
+    .spot-type-chip {
+        padding: 2px 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 0.78em;
+    }
+    .spot-type-chips-none {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.78em;
     }
     .spot-tooltip-status {
         display: flex;
@@ -3810,22 +3880,93 @@
         return box;
     }
 
-    // Подпись с видами грибов в списке результатов. Если в фильтре выбраны виды,
-    // показываем только их (по ним место и нашлось), остальные виды скрываем.
-    // Без фильтра — первые виды места (они уже отсортированы по важности
-    // категорий). Длинный список обрезается до MAX_TYPES_IN_LIST и «…».
-    // Полный список видов места — во всплывающей подсказке и в карточке места.
+    // Виды грибов в карточке списка. Если в фильтре выбраны виды, показываем только их
+    // (по ним место и нашлось), остальные скрываем. Без фильтра — первые виды места (они уже
+    // отсортированы по важности категорий). В карточке чипами идут первые MAX_TYPES_IN_LIST,
+    // остальные сворачиваются в «+N». Полный список видов — во всплывающей подсказке и в
+    // карточке места.
     const MAX_TYPES_IN_LIST = 3;
-    function shortTypesLabel(names, codes, selectedCodes) {
-        if (!names || names.length === 0) return '—';
-        let shown = names;
+    function listTypeNames(names, codes, selectedCodes) {
+        if (!names || names.length === 0) return [];
         if (selectedCodes && selectedCodes.length > 0 && codes) {
             const wanted = new Set(selectedCodes);
             const matching = names.filter((_, i) => wanted.has(codes[i]));
-            if (matching.length > 0) shown = matching;
+            if (matching.length > 0) return matching;
         }
-        const text = shown.slice(0, MAX_TYPES_IN_LIST).join(', ');
-        return shown.length > MAX_TYPES_IN_LIST ? `${text}, …` : text;
+        return names;
+    }
+
+    // 3.7 -> «3,7»
+    function formatRating(value) {
+        return value.toFixed(1).replace('.', ',');
+    }
+
+    // Карточка места в списке поиска. Всё, что приходит от пользователей (название, виды),
+    // вставляется через textContent. role="button" + tabindex: открывается и с клавиатуры.
+    function buildSpotListItem(spot, selectedTypes, onOpen) {
+        const item = document.createElement('div');
+        item.className = 'spot-list-item';
+        item.setAttribute('role', 'button');
+        item.tabIndex = 0;
+
+        const head = document.createElement('div');
+        head.className = 'spot-list-head';
+        const title = document.createElement('span');
+        title.className = 'spot-list-title';
+        title.textContent = spot.title;
+        const rating = document.createElement('span');
+        if (typeof spot.average_rating === 'number') {
+            rating.className = 'spot-list-rating';
+            const star = document.createElement('span');
+            star.className = 'star';
+            star.textContent = '★';
+            rating.append(star, ` ${formatRating(spot.average_rating)}`);
+            rating.title = `Оценок: ${spot.ratings_count}`;
+        } else {
+            rating.className = 'spot-list-rating spot-list-rating-none';
+            rating.textContent = 'нет оценок';
+        }
+        head.append(title, rating);
+        item.appendChild(head);
+
+        if (spot.status) {
+            const code = spot.status.code;
+            item.appendChild(buildStatusLine(spot.status, `spot-status-chip chip-${code}`));
+        }
+
+        const names = listTypeNames(spot.mushroom_types_names, spot.mushroom_types, selectedTypes);
+        if (names.length === 0) {
+            const none = document.createElement('div');
+            none.className = 'spot-type-chips-none';
+            none.textContent = 'Виды не указаны';
+            item.appendChild(none);
+        } else {
+            const chips = document.createElement('div');
+            chips.className = 'spot-type-chips';
+            chips.title = spot.mushroom_types_label;
+            names.slice(0, MAX_TYPES_IN_LIST).forEach((name) => {
+                const chip = document.createElement('span');
+                chip.className = 'spot-type-chip';
+                chip.textContent = name;
+                chips.appendChild(chip);
+            });
+            if (names.length > MAX_TYPES_IN_LIST) {
+                const more = document.createElement('span');
+                more.className = 'spot-type-chip';
+                more.textContent = `+${names.length - MAX_TYPES_IN_LIST}`;
+                chips.appendChild(more);
+            }
+            item.appendChild(chips);
+        }
+
+        item.addEventListener('click', onOpen);
+        item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen();
+            }
+        });
+        return item;
     }
 
     // --- Область поиска: радиус вокруг точки, заданной правым кликом по карте ---
@@ -3879,21 +4020,7 @@
                 if (!map.hasLayer(entry.marker)) entry.marker.addTo(map);
                 visibleCount += 1;
 
-                const item = document.createElement('div');
-                item.style.padding = '6px 0';
-                item.style.borderBottom = '1px solid #eee';
-                // textContent, а не innerHTML: название места вводит пользователь
-                const titleLink = document.createElement('a');
-                titleLink.href = '#';
-                titleLink.textContent = entry.data.title;
-                const typesLabel = document.createElement('small');
-                typesLabel.textContent = shortTypesLabel(entry.data.mushroom_types_names, entry.data.mushroom_types, selectedTypes);
-                typesLabel.title = entry.data.mushroom_types_label;
-                item.append(titleLink, document.createElement('br'), typesLabel);
-                if (entry.data.status) item.appendChild(buildStatusLine(entry.data.status, 'spot-status-line'));
-                item.style.cursor = 'pointer';
-                item.querySelector('a').addEventListener('click', (ev) => {
-                    ev.preventDefault();
+                const item = buildSpotListItem(entry.data, selectedTypes, () => {
                     let target = L.latLng(entry.data.latitude, entry.data.longitude);
                     if (phoneMq.matches) {
                         // центр карты ниже метки на полвысоты шторки — метка окажется посреди видимой части
@@ -3920,6 +4047,15 @@
                 clearSearchArea();
             });
             empty.appendChild(clearLink);
+            resultsBox.appendChild(empty);
+        }
+
+        if (visibleCount === 0 && !searchArea) {
+            const empty = document.createElement('p');
+            empty.className = 'search-area-empty';
+            empty.textContent = allSpots.length === 0
+                ? 'Мест пока нет — добавьте первое.'
+                : 'Ничего не найдено. Измените запрос или фильтры.';
             resultsBox.appendChild(empty);
         }
 
@@ -4001,7 +4137,11 @@
         setSheetState(state === 'peek' ? 'half' : state === 'half' ? 'full' : 'half');
     }
 
+    // Тап обрабатывается в click самой ручки, а не в pointerup: иначе шторка раскрывалась бы до
+    // click, и он попадал бы в то, что оказалось под пальцем (например, открывал место из списка).
+    // После жеста click (его шлёт мышь) игнорируем: жест уже сменил положение.
     let sheetDrag = null;
+    let sheetLastDragEnd = 0;
     sheetHandle.addEventListener('pointerdown', (e) => {
         sheetDrag = { startY: e.clientY, startHeight: searchPanel.getBoundingClientRect().height, moved: false };
         sheetHandle.setPointerCapture(e.pointerId);
@@ -4025,13 +4165,17 @@
         searchPanel.style.transition = '';
         searchPanel.style.maxHeight = '';
         searchPanel.style.height = '';
-        if (cancelled) return;
-        if (!moved) { cycleSheet(); return; }
+        if (cancelled || !moved) return;
+        sheetLastDragEnd = performance.now();
         const dy = e.clientY - startY;
         const state = sheetState();
         if (dy <= -SHEET_DRAG_PX) setSheetState(state === 'peek' ? 'half' : 'full');
         else if (dy >= SHEET_DRAG_PX) setSheetState(state === 'full' ? 'half' : 'peek');
     }
+    sheetHandle.addEventListener('click', () => {
+        if (performance.now() - sheetLastDragEnd < 400) return;
+        cycleSheet();
+    });
     sheetHandle.addEventListener('pointerup', (e) => endSheetDrag(e, false));
     sheetHandle.addEventListener('pointercancel', (e) => endSheetDrag(e, true));
     sheetHandle.addEventListener('keydown', (e) => {

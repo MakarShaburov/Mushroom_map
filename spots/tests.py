@@ -578,3 +578,33 @@ class MobileLayoutTests(TestCase):
         self.assertContains(response, 'class="map-canvas"')
         self.assertNotContains(response, 'height: 80vh; width: 100%;')   # высоту теперь задаёт CSS (и телефонная вёрстка)
 
+
+@FAST_HASHER
+class NavBarTests(TestCase):
+    def test_guest_sees_login_and_signup_but_no_user_menu(self):
+        response = self.client.get(reverse('spots:map'))
+        self.assertContains(response, 'data-auth-open="login"')
+        self.assertContains(response, 'class="nav-btn nav-btn-solid"')
+        # проверяем разметку, а не подстроку: классы .nav-user есть и в CSS внутри <style>
+        self.assertNotContains(response, 'class="nav-user"')
+        self.assertNotContains(response, '<span class="nav-label-long">')
+
+    def test_user_menu_has_profile_logout_and_add_button(self):
+        user = get_user_model().objects.create_user('makar', 'm@example.com', 'pw')
+        self.client.force_login(user)
+        response = self.client.get(reverse('spots:map'))
+        self.assertContains(response, 'class="nav-user"')
+        self.assertContains(response, reverse('accounts:profile'))
+        self.assertContains(response, f'action="{reverse("accounts:logout")}"')
+        self.assertContains(response, reverse('spots:spot_create'))
+        self.assertContains(response, 'Пока нет оценок')   # у нового пользователя не пишем «рейтинг 0,0»
+
+    def test_user_menu_shows_rating_once_there_are_ratings(self):
+        user = get_user_model().objects.create_user('makar', 'm@example.com', 'pw')
+        user.profile.rating, user.profile.rating_count = 4.0, 3
+        user.profile.save()
+        self.client.force_login(user)
+        response = self.client.get(reverse('spots:map'))
+        self.assertContains(response, '★ 4,0')
+        self.assertNotContains(response, 'Пока нет оценок')
+
