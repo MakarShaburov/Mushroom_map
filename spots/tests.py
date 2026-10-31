@@ -608,3 +608,61 @@ class NavBarTests(TestCase):
         self.assertContains(response, '★ 4,0')
         self.assertNotContains(response, 'Пока нет оценок')
 
+
+@FAST_HASHER
+class DangerAndCardTests(TestCase):
+    """Пометка опасных видов (☠ ⚠) и плашка статуса в карточке места."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('author', 'a@example.com', 'pw')
+        self.spot = MushroomSpot.objects.create(
+            author=self.user, title='Опушка', description='-', latitude=55.0, longitude=37.0,
+        )
+        self.deadly = MushroomType.objects.get(code='death_cap')
+        self.poisonous = MushroomType.objects.get(code='fly_agaric')
+        self.edible = MushroomType.objects.get(code='white')
+        self.spot.mushroom_types.set([self.deadly, self.poisonous, self.edible])
+
+    def test_type_danger_follows_category_code(self):
+        self.assertEqual(self.deadly.danger, 'deadly')
+        self.assertEqual(self.poisonous.danger, 'poisonous')
+        self.assertEqual(self.edible.danger, '')
+        self.assertEqual(MushroomType.objects.get(code='chaga').danger, '')   # несъедобный — не «ядовитый»
+        self.assertEqual(MushroomType(code='x', name='Без категории').danger, '')
+
+    def test_api_gives_danger_parallel_to_names(self):
+        spot = self.client.get(reverse('spots:spots_api')).json()['spots'][0]
+        names, dangers = spot['mushroom_types_names'], spot['mushroom_types_danger']
+        self.assertEqual(len(names), len(dangers))
+        by_name = dict(zip(names, dangers))
+        self.assertEqual(by_name['Бледная поганка'], 'deadly')
+        self.assertEqual(by_name['Мухомор красный'], 'poisonous')
+        self.assertEqual(by_name['Белый гриб'], '')
+
+    def test_card_marks_dangerous_types_and_leaves_edible_unmarked(self):
+        html = self.client.get(reverse('spots:spot_search_card', args=[self.spot.pk])).content.decode()
+        self.assertIn('type-danger-deadly', html)
+        self.assertIn('☠ Бледная поганка', html)
+        self.assertIn('⚠ Мухомор красный', html)
+        self.assertIn('Белый гриб</a>', html)                # без значка
+        self.assertNotIn('type-danger-poisonous">Белый', html)
+        self.assertIn('title="Смертельно ядовитый"', html)
+
+    def test_status_banner_comes_right_after_the_title(self):
+        html = self.client.get(reverse('spots:spot_search_card', args=[self.spot.pk])).content.decode()
+        title, banner, rating = (html.index(m) for m in ('spot-card-title', 'spot-status-banner chip-', 'class="spot-card-rating"'))
+        self.assertLess(title, banner)
+        self.assertLess(banner, rating)
+        self.assertEqual(html.count('class="spot-status"'), 1)   # старая отдельная строка статуса убрана
+
+
+@FAST_HASHER
+class AvatarMergeTests(TestCase):
+    def test_map_has_no_second_avatar_and_menu_link_opens_profile_panel(self):
+        user = get_user_model().objects.create_user('makar', 'm@example.com', 'pw')
+        self.client.force_login(user)
+        response = self.client.get(reverse('spots:map'))
+        self.assertNotContains(response, 'user-avatar-toggle')
+        self.assertContains(response, 'data-profile-open')
+        self.assertContains(response, reverse('accounts:profile'))   # без JS остаётся обычная ссылка
+

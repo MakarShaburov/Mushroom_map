@@ -31,6 +31,12 @@ class MushroomCategory(models.Model):
         return self.name
 
 
+# Коды категорий, виды которых помечаем как опасные в чипах (см. MushroomType.danger).
+# «Съедобные» намеренно не выделяем цветом: пометка «безопасно» по одному названию вида
+# создавала бы ложное чувство надёжности, а определить вид по фото ненадёжно.
+DANGER_CATEGORY_CODES = {'deadly': 'deadly', 'poisonous': 'poisonous'}
+
+
 class MushroomType(models.Model):
     """Вид гриба (справочник). Управляется через /admin/, места
     могут быть отмечены сразу несколькими видами."""
@@ -67,6 +73,12 @@ class MushroomType(models.Model):
         verbose_name = 'Вид гриба'
         verbose_name_plural = 'Виды грибов'
         ordering = ['name']
+
+    @property
+    def danger(self):
+        """'deadly' (смертельно ядовит), 'poisonous' (ядовит) или '' — по категории вида.
+        В чипах опасные виды отмечены значками ☠ и ⚠."""
+        return DANGER_CATEGORY_CODES.get(self.category.code, '') if self.category_id else ''
 
     def __str__(self):
         return self.name

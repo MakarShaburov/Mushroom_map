@@ -301,23 +301,6 @@
         align-items: center;
         gap: 8px;
     }
-    .user-avatar-btn {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        border: 3px solid var(--nav-bg);
-        background: var(--panel-bg);
-        color: var(--text);
-        font-weight: bold;
-        font-size: 16px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-        padding: 0;
-        flex-shrink: 0;
-    }
     .theme-dropdown {
         position: absolute;
         top: 54px;
@@ -725,13 +708,6 @@
     .spot-card-types {
         margin: 0 0 14px;
         font-size: 0.95em;
-    }
-    .spot-types-list {
-        margin: 6px 0 0;
-        padding-left: 18px;
-    }
-    .spot-types-list li {
-        margin-bottom: 4px;
     }
     .mushroom-type-link {
         color: var(--link);
@@ -1499,7 +1475,8 @@
         font-weight: normal;
     }
     .season-plenty { background: #2ea043; }
-    .season-some { background: #9ccc65; }
+    .season-some { background: repeating-linear-gradient(45deg, #9ccc65 0 3px, #c5e1a5 3px 6px); }
+    .season-dot.season-some { background: #9ccc65; }
     .season-none { background: #8b949e; }
     .season-legend {
         display: flex;
@@ -1773,6 +1750,74 @@
         margin-top: 6px;
         color: var(--muted);
         font-size: 0.78em;
+    }
+    /* Опасные виды: красная рамка и значок (☠ смертельно ядовит, ⚠ ядовит). «Съедобные» цветом
+       не выделяем намеренно — см. DANGER_CATEGORY_CODES в models.py. */
+    .type-danger-poisonous {
+        border-color: #e5534b;
+        background: rgba(229, 83, 75, 0.1);
+        color: var(--text);
+    }
+    .type-danger-deadly {
+        border-color: #e5534b;
+        background: rgba(229, 83, 75, 0.22);
+        color: var(--text);
+        font-weight: 600;
+    }
+    /* Виды в карточке места: по категориям, каждый вид — ссылка на справочную карточку. */
+    .spot-type-groups {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 6px;
+    }
+    .spot-type-group-name {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--muted);
+        font-size: 0.8em;
+    }
+    .spot-card-types .spot-type-chips {
+        margin-top: 0;
+    }
+    .spot-card-types .spot-type-chip {
+        padding: 3px 10px;
+        font-size: 0.88em;
+    }
+    .spot-type-chip-link {
+        color: var(--link);
+        text-decoration: none;
+        cursor: pointer;
+    }
+    .spot-type-chip-link:hover {
+        border-color: var(--link);
+    }
+    /* Плашка статуса в карточке места: самое важное для грибника — под названием.
+       Цвета фона — те же .chip-*, что и в списке. */
+    .spot-status-banner {
+        margin: 0 0 10px;
+        padding: 8px 12px;
+        border-radius: 12px;
+    }
+    .spot-status-banner .spot-status {
+        margin: 0;
+    }
+    .spot-status-banner .spot-status-note {
+        margin: 2px 0 0 14px;
+        font-size: 0.85em;
+    }
+    /* Кластер меток: нейтральный цвет шапки сайта, а не зелёный/жёлтый/красный — эти цвета
+       у нас значат статус места. */
+    .spot-cluster {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 3px solid #fff;
+        border-radius: 50%;
+        background: var(--nav-bg);
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+        color: var(--nav-text);
+        font-weight: bold;
     }
     .spot-tooltip-status {
         display: flex;
@@ -2339,8 +2384,9 @@
         .sheet-handle {
             display: flex;
             flex-shrink: 0;
+            align-items: center;
             justify-content: center;
-            padding: 10px 0 4px;
+            min-height: 32px;
             cursor: grab;
             touch-action: none;   /* вертикальный жест на ручке тянет шторку, а не страницу */
         }
@@ -2391,6 +2437,40 @@
             max-height: calc(100% - 64px);
             z-index: 1002;   /* поверх шторки */
         }
+        /* Сенсорные цели: палец крупнее курсора, поэтому кнопки и ссылки на телефоне не ниже
+           32–40px (по аудиту размеров в карточке места, списке и вкладках). Столбцы графиков по
+           дням (≈11px шириной) остаются узкими — их 31 в одной строке; рядом есть подсказка. */
+        .filters-close-btn {
+            min-width: 40px;
+            min-height: 40px;
+        }
+        .spot-tab-btn {
+            min-height: 40px;
+        }
+        .spot-tabs-arrow {
+            min-width: 36px;
+            min-height: 36px;
+        }
+        .spot-type-chip-link {
+            display: inline-flex;
+            align-items: center;
+            min-height: 32px;
+        }
+        .spot-review-star {
+            min-width: 36px;
+            min-height: 40px;
+        }
+        .spot-comment-vote-btn,
+        .spot-reports-chip {
+            min-height: 36px;
+        }
+        .spot-reports-all,
+        .spot-comments-sort-btn,
+        .spot-report-delete,
+        .spot-card-page-link {
+            display: inline-block;
+            padding: 10px 4px;
+        }
     }
 </style>
 <div style="position: relative;">
@@ -2398,9 +2478,6 @@
     <div id="map-dim" class="map-dim"></div>
 
     <div class="map-topbar-left">
-        {% if user.is_authenticated %}
-            <button id="user-avatar-toggle" class="user-avatar-btn" title="Профиль">{{ user.username|first|upper }}</button>
-        {% endif %}
         <button id="settings-toggle" class="search-panel-tab-btn" title="Настройки">⋯</button>
         <button id="reference-toggle" class="search-panel-tab-btn" title="Справочник грибов" data-reference-url="{% url 'spots:mushroom_reference' %}">📖</button>
         {% if identify_available and user.is_authenticated %}
@@ -2579,7 +2656,7 @@
                         <div class="profile-view-user">
                             <span class="user-avatar-badge">{{ user.username|first|upper }}</span>
                             <span class="profile-view-username">{{ user.username }}</span>
-                            <span class="profile-view-rating">★ {{ user.profile.rating|default:"—" }}</span>
+                            <span class="profile-view-rating">{% if user.profile.rating_count %}★ {{ user.profile.rating|floatformat:1 }}{% else %}Пока нет оценок{% endif %}</span>
                         </div>
                         <div class="profile-view-actions">
                             <button type="button" id="profile-menu-toggle" class="profile-menu-btn" title="Меню профиля">⋯</button>
@@ -2764,6 +2841,8 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 <script>
@@ -2786,6 +2865,20 @@
     }).addTo(map);
 
     let allSpots = []; // { data, marker }
+    // Метки лежат в слое-кластере: близкие места сливаются в круг с числом, при приближении
+    // раскрываются. Если плагин не загрузился (нет сети), работаем с обычным слоем.
+    const spotLayer = (L.markerClusterGroup
+        ? L.markerClusterGroup({
+            maxClusterRadius: 45,
+            showCoverageOnHover: false,
+            iconCreateFunction: (cluster) => L.divIcon({
+                html: `<span>${cluster.getChildCount()}</span>`,
+                className: 'spot-cluster',
+                iconSize: [38, 38],
+            }),
+        })
+        : L.layerGroup()
+    ).addTo(map);
 
     // --- Карточка места в окне поиска (открывается по клику на метку) ---
     let spotCardCarouselTimer = null;
@@ -3503,6 +3596,11 @@
             .catch(() => { btn.disabled = false; });
     }
 
+    // Плавная прокрутка — если пользователь не просил убрать анимации в системе.
+    function scrollBehavior() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    }
+
     // Столбец месяца в графике сезонности: под графиком открываются отчёты этого месяца,
     // повторный клик по тому же столбцу (или ✕) закрывает их.
     function toggleSeasonMonth(col) {
@@ -3531,7 +3629,7 @@
             .then((html) => {
                 if (detail.dataset.month !== month) return;
                 detail.innerHTML = html;
-                detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                detail.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
             })
             .catch(() => {
                 if (detail.dataset.month !== month) return;
@@ -3568,7 +3666,7 @@
             .then((html) => {
                 if (detail.dataset.day !== day) return;
                 detail.innerHTML = html;
-                detail.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                detail.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
             })
             .catch(() => {
                 if (detail.dataset.day !== day) return;
@@ -3828,7 +3926,7 @@
     function removeSpotFromMap(spotId) {
         const idx = allSpots.findIndex(entry => entry.data.id === spotId);
         if (idx === -1) return;
-        map.removeLayer(allSpots[idx].marker);
+        spotLayer.removeLayer(allSpots[idx].marker);
         allSpots.splice(idx, 1);
         applyFilters();
     }
@@ -3886,14 +3984,34 @@
     // остальные сворачиваются в «+N». Полный список видов — во всплывающей подсказке и в
     // карточке места.
     const MAX_TYPES_IN_LIST = 3;
-    function listTypeNames(names, codes, selectedCodes) {
-        if (!names || names.length === 0) return [];
-        if (selectedCodes && selectedCodes.length > 0 && codes) {
+    const DANGER_ICONS = { deadly: '☠', poisonous: '⚠' };
+    const DANGER_TITLES = { deadly: 'Смертельно ядовитый', poisonous: 'Ядовитый' };
+
+    // Виды места для карточки списка: [{ code, name, danger }]. Выбранные в фильтре идут по
+    // существу, но опасные виды места показываем всегда, даже если их не выбирали: скрыть
+    // «ядовитый» из-за фильтра по съедобному виду было бы вредно.
+    function listTypeEntries(spot, selectedCodes) {
+        const codes = spot.mushroom_types || [];
+        const dangers = spot.mushroom_types_danger || [];
+        let entries = (spot.mushroom_types_names || []).map((name, i) => ({
+            code: codes[i], name, danger: dangers[i] || '',
+        }));
+        if (selectedCodes && selectedCodes.length > 0) {
             const wanted = new Set(selectedCodes);
-            const matching = names.filter((_, i) => wanted.has(codes[i]));
-            if (matching.length > 0) return matching;
+            const matching = entries.filter((e) => wanted.has(e.code));
+            if (matching.length > 0) {
+                entries = matching.concat(entries.filter((e) => e.danger && !wanted.has(e.code)));
+            }
         }
-        return names;
+        return entries;
+    }
+
+    function buildTypeChip(text, danger) {
+        const chip = document.createElement('span');
+        chip.className = 'spot-type-chip' + (danger ? ` type-danger-${danger}` : '');
+        chip.textContent = DANGER_ICONS[danger] ? `${DANGER_ICONS[danger]} ${text}` : text;
+        if (danger) chip.title = DANGER_TITLES[danger];
+        return chip;
     }
 
     // 3.7 -> «3,7»
@@ -3934,7 +4052,7 @@
             item.appendChild(buildStatusLine(spot.status, `spot-status-chip chip-${code}`));
         }
 
-        const names = listTypeNames(spot.mushroom_types_names, spot.mushroom_types, selectedTypes);
+        const names = listTypeEntries(spot, selectedTypes);
         if (names.length === 0) {
             const none = document.createElement('div');
             none.className = 'spot-type-chips-none';
@@ -3944,17 +4062,15 @@
             const chips = document.createElement('div');
             chips.className = 'spot-type-chips';
             chips.title = spot.mushroom_types_label;
-            names.slice(0, MAX_TYPES_IN_LIST).forEach((name) => {
-                const chip = document.createElement('span');
-                chip.className = 'spot-type-chip';
-                chip.textContent = name;
-                chips.appendChild(chip);
+            names.slice(0, MAX_TYPES_IN_LIST).forEach((entry) => {
+                chips.appendChild(buildTypeChip(entry.name, entry.danger));
             });
             if (names.length > MAX_TYPES_IN_LIST) {
-                const more = document.createElement('span');
-                more.className = 'spot-type-chip';
-                more.textContent = `+${names.length - MAX_TYPES_IN_LIST}`;
-                chips.appendChild(more);
+                // Если среди скрытых есть опасный вид, «+N» тоже помечен: не прячем опасное за числом.
+                const hidden = names.slice(MAX_TYPES_IN_LIST);
+                const hiddenDanger = hidden.some((e) => e.danger === 'deadly') ? 'deadly'
+                    : hidden.some((e) => e.danger) ? 'poisonous' : '';
+                chips.appendChild(buildTypeChip(`+${hidden.length}`, hiddenDanger));
             }
             item.appendChild(chips);
         }
@@ -4017,7 +4133,7 @@
             const visible = matchesText && matchesTypes && matchesArea && matchesRecent;
 
             if (visible) {
-                if (!map.hasLayer(entry.marker)) entry.marker.addTo(map);
+                if (!spotLayer.hasLayer(entry.marker)) spotLayer.addLayer(entry.marker);
                 visibleCount += 1;
 
                 const item = buildSpotListItem(entry.data, selectedTypes, () => {
@@ -4031,7 +4147,7 @@
                 });
                 resultsBox.appendChild(item);
             } else {
-                if (map.hasLayer(entry.marker)) map.removeLayer(entry.marker);
+                if (spotLayer.hasLayer(entry.marker)) spotLayer.removeLayer(entry.marker);
             }
         });
 
@@ -4069,7 +4185,7 @@
             data.spots.forEach(spot => {
                 const marker = L.marker([spot.latitude, spot.longitude], {
                     icon: buildSpotIcon(spot.status ? spot.status.code : 'no_data'),
-                }).addTo(map);
+                });   // в слой его добавит applyFilters (spotLayer)
                 marker.bindTooltip(buildSpotTooltip(spot));
                 marker.on('click', () => {
                     if (routePickingField) {
@@ -4629,17 +4745,19 @@
 
     {% if user.is_authenticated %}
     // --- Профиль: показать/скрыть вид, меню из трёх точек, список мест ---
-    const userAvatarToggle = document.getElementById('user-avatar-toggle');
     const profileMenuToggle = document.getElementById('profile-menu-toggle');
     const profileMenu = document.getElementById('profile-menu');
 
-    userAvatarToggle.addEventListener('click', () => {
-        if (currentView === 'profile') {
-            showView('results');
-        } else {
+    // «Мой профиль» в верхней панели на странице карты открывает профиль в боковой панели,
+    // а не уводит на отдельную страницу (на остальных страницах это обычная ссылка).
+    document.querySelectorAll('[data-profile-open]').forEach((link) => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const navMenu = link.closest('details');
+            if (navMenu) navMenu.open = false;
             setSearchPanelCollapsed(false);
             showView('profile');
-        }
+        });
     });
 
     // Выйти из профиля можно ещё крестиком, обычным кликом по карте

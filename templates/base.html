@@ -37,6 +37,13 @@
         body { font-family: sans-serif; margin: 0; background: var(--bg); color: var(--text); }
         :root { --nav-h: 52px; }
 
+        /* Видимый фокус при работе с клавиатурой (мышью не показывается). */
+        :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+        /* Пользователям, отключившим анимации в системе, анимации не показываем. */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; animation-duration: 0.01ms !important; scroll-behavior: auto !important; }
+        }
+
         /* Верхняя панель: слева логотип, справа действия. Высота фиксирована: от неё считается
            высота карты на телефоне. Меню пользователя — <details>, работает без JS (скрипт
            внизу лишь закрывает его по клику снаружи и по Escape). */
@@ -138,7 +145,7 @@
         @media (max-width: 640px) {
             :root { --nav-h: 48px; }
             nav { padding: 0 12px; gap: 8px; }
-            .nav-logo { font-size: 15px; }
+            .nav-logo { font-size: 15px; padding: 12px 0; }
             .nav-actions { gap: 6px; }
             .nav-label-long { display: none; }
             .nav-label-short { display: inline; }
@@ -251,7 +258,7 @@
                             <strong>{{ user.username }}</strong>
                             <span>{% if user.profile.rating_count %}★ {{ user.profile.rating|floatformat:1 }}{% else %}Пока нет оценок{% endif %}</span>
                         </div>
-                        <a href="{% url 'accounts:profile' %}">Мой профиль</a>
+                        <a href="{% url 'accounts:profile' %}" data-profile-open>Мой профиль</a>
                         <form action="{% url 'accounts:logout' %}" method="post">
                             {% csrf_token %}
                             <button type="submit">Выйти</button>
@@ -367,6 +374,28 @@
             })();
         </script>
     {% endif %}
+    <script>
+        // Кнопки-значки (✕, ⋯, 📷 …) подписаны только через title, а его экранные читалки
+        // озвучивают ненадёжно. Дублируем title в aria-label — и для кнопок, которые приходят
+        // позже (карточки грузятся запросами). Кнопки с видимым текстом не трогаем.
+        (function () {
+            function label(button) {
+                if (button.hasAttribute('aria-label') || !button.title) return;
+                if (/[A-Za-zА-Яа-яЁё]/.test(button.textContent)) return;
+                button.setAttribute('aria-label', button.title);
+            }
+            function labelWithin(root) {
+                if (root.matches && root.matches('button[title]')) label(root);
+                if (root.querySelectorAll) root.querySelectorAll('button[title]').forEach(label);
+            }
+            labelWithin(document);
+            new MutationObserver(function (mutations) {
+                mutations.forEach(function (m) {
+                    m.addedNodes.forEach(function (node) { if (node.nodeType === 1) labelWithin(node); });
+                });
+            }).observe(document.body, { childList: true, subtree: true });
+        })();
+    </script>
     <script>
         // Меню пользователя в верхней панели (<details>) закрывается по клику снаружи и по Escape.
         (function () {

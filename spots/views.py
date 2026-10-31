@@ -108,6 +108,8 @@ def spots_api(request):
             'mushroom_types': [t.code for t in types],
             # Названия в порядке важности категорий — для усечённого списка в поиске.
             'mushroom_types_names': [t.name for t in types],
+            # Параллельно названиям: 'deadly' / 'poisonous' / '' — чтобы пометить опасные виды в списке.
+            'mushroom_types_danger': [t.danger for t in types],
             'mushroom_types_label': ', '.join(t.name for t in types) or '—',
             'status': {'code': status.code, 'label': status.label},
             'last_found_days': status.last_found_days,

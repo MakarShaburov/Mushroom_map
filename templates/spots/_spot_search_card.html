@@ -30,6 +30,18 @@
 
     <h2 class="spot-card-title">{{ spot.title }}</h2>
 
+    <div class="spot-status-banner chip-{{ status.code }}">
+        <div class="spot-status">
+            <span class="status-dot status-{{ status.code }}"></span>
+            <span class="spot-status-label">{{ status.label }}</span>
+        </div>
+        {% if status.recent_count %}
+            <p class="spot-status-note">Отчётов за 30 дней: {{ status.recent_count }}</p>
+        {% elif status.last_report_date %}
+            <p class="spot-status-note">Последний отчёт: {{ status.last_report_date|date:"d.m.Y" }}</p>
+        {% endif %}
+    </div>
+
     <div class="spot-card-rating">
         {% if spot.average_rating %}
             <span class="spot-card-stars">{% for i in "12345" %}{% if forloop.counter <= rounded_rating %}★{% else %}☆{% endif %}{% endfor %}</span>
@@ -42,15 +54,6 @@
 
     <p class="spot-card-author">Автор: <span class="user-link" data-user-open="{{ spot.author.username }}" data-user-card-url="{% url 'accounts:user_card' spot.author.username %}">{{ spot.author.username }}</span></p>
 
-    <div class="spot-status">
-        <span class="status-dot status-{{ status.code }}"></span>
-        <span class="spot-status-label">{{ status.label }}</span>
-    </div>
-    {% if status.recent_count %}
-        <p class="spot-status-note">Отчётов за 30 дней: {{ status.recent_count }}</p>
-    {% elif status.last_report_date %}
-        <p class="spot-status-note">Последний отчёт: {{ status.last_report_date|date:"d.m.Y" }}</p>
-    {% endif %}
     {% if user.is_authenticated %}
         <button type="button" class="spot-report-open">📝 Сообщить о посещении</button>
     {% else %}
@@ -92,15 +95,18 @@
     </div>
 
     <div class="spot-tab-panel" data-spot-tab-panel="overview">
-        <div class="spot-card-types"><strong>Виды грибов:</strong>
+        <div class="spot-card-types"><strong>Виды грибов</strong>
             {% if type_groups %}
-                <ul class="spot-types-list">
+                <div class="spot-type-groups">
                     {% for group in type_groups %}
-                        <li><strong>{{ group.name }}:</strong> {% for type in group.types %}<a href="#" class="mushroom-type-link" data-type-open data-type-card-url="{% url 'spots:mushroom_type_card' type.pk %}">{{ type.name }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</li>
+                        <div class="spot-type-group">
+                            <span class="spot-type-group-name">{{ group.name }}</span>
+                            <div class="spot-type-chips">{% for type in group.types %}<a href="#" class="spot-type-chip spot-type-chip-link{% if type.danger %} type-danger-{{ type.danger }}{% endif %}" data-type-open data-type-card-url="{% url 'spots:mushroom_type_card' type.pk %}"{% if type.danger == 'deadly' %} title="Смертельно ядовитый"{% elif type.danger %} title="Ядовитый"{% endif %}>{% if type.danger == 'deadly' %}☠ {% elif type.danger %}⚠ {% endif %}{{ type.name }}</a>{% endfor %}</div>
+                        </div>
                     {% endfor %}
-                </ul>
+                </div>
             {% else %}
-                не указаны
+                <span class="spot-type-chips-none">не указаны</span>
             {% endif %}
         </div>
 
@@ -286,5 +292,5 @@
         </div>
     </div>
 
-    <p><a href="{% url 'spots:spot_detail' spot.pk %}">Открыть отдельную страницу места →</a></p>
+    <p><a class="spot-card-page-link" href="{% url 'spots:spot_detail' spot.pk %}">Открыть отдельную страницу места →</a></p>
 </div>
