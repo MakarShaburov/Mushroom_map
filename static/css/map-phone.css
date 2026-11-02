@@ -1,0 +1,140 @@
+/* Телефонная вёрстка страницы карты (ширина до 640px) и стили, нужные для неё: высота
+   карты, нижняя шторка, ручка, сенсорные цели. Подключается после map.css. Шторка:
+   свёрнута (.collapsed) / половина (по умолчанию) / во весь рост (.sheet-full); число 55%
+   продублировано в JS (sheetClearancePx в map.html). */
+
+.map-canvas {
+    height: 80vh;
+    width: 100%;
+}
+.sheet-handle {
+    display: none;
+}
+
+/* Телефон: карта на весь экран под верхней панелью, а панель поиска и все карточки
+   (место, профиль, фильтры, маршрут) — нижняя шторка, как в Яндекс и Google Картах.
+   Три положения: свёрнута (.collapsed — видна только строка поиска), половина (55%
+   карты, по умолчанию) и во весь рост (.sheet-full). Число 55% есть и в JS
+   (sheetClearancePx) — чтобы метка выбранного места не оказывалась под шторкой. */
+@media (max-width: 640px) {
+    main { padding: 0; }
+    .map-canvas {
+        height: calc(100vh - var(--nav-h));
+        height: calc(100dvh - var(--nav-h));
+    }
+    .search-panel {
+        top: auto;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        max-width: none;
+        max-height: 55%;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.25);
+        transition: max-height 0.2s ease, height 0.2s ease;
+    }
+    .search-panel.wide {
+        width: 100%;
+    }
+    .search-panel.sheet-full {
+        /* Во весь рост — это именно высота, а не потолок: даже с коротким содержимым шторка
+           растягивается, иначе жест вверх выглядел бы сломанным. Сверху остаётся полоска
+           карты с кнопками. */
+        height: calc(100% - 56px);
+        max-height: calc(100% - 56px);
+    }
+    .search-panel.collapsed {
+        max-height: none;
+    }
+    .sheet-handle {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        min-height: 32px;
+        cursor: grab;
+        touch-action: none;   /* вертикальный жест на ручке тянет шторку, а не страницу */
+    }
+    .sheet-handle::before {
+        content: "";
+        width: 44px;
+        height: 5px;
+        border-radius: 3px;
+        background: var(--border);
+    }
+    #search-panel-header {
+        padding: 4px 12px 10px;
+    }
+    #search-panel-body {
+        padding-bottom: 20px;
+        overscroll-behavior: contain;
+    }
+    /* Кнопка фильтров переезжает в правый верхний угол карты; «свернуть» заменяет ручка.
+       !important — потому что setSearchPanelWide ставит right инлайном под десктопную панель. */
+    .search-panel-tabs {
+        top: 28px;
+        right: 10px !important;
+    }
+    #search-panel-toggle {
+        display: none;
+    }
+    .search-panel-tab-btn {
+        width: 40px;
+        height: 40px;
+        line-height: 40px;
+        font-size: 16px;
+    }
+    /* На телефоне масштабируют щипком; кнопки +/− только занимают место. */
+    .leaflet-control-zoom {
+        display: none;
+    }
+    /* Подпись источника карт (обязательна) уходит наверх, чтобы её не закрывала шторка. */
+    .leaflet-bottom.leaflet-right {
+        top: 0;
+        bottom: auto;
+    }
+    .reference-window {
+        top: 56px;
+        left: 8px;
+        right: 8px;
+        width: auto;
+        max-width: none;
+        max-height: calc(100% - 64px);
+        z-index: var(--z-map-popup);   /* поверх шторки */
+    }
+    /* Сенсорные цели: палец крупнее курсора, поэтому кнопки и ссылки на телефоне не ниже
+       32–40px (по аудиту размеров в карточке места, списке и вкладках). Столбцы графиков по
+       дням (≈11px шириной) остаются узкими — их 31 в одной строке; рядом есть подсказка. */
+    .filters-close-btn {
+        min-width: 40px;
+        min-height: 40px;
+    }
+    .spot-tab-btn {
+        min-height: 40px;
+    }
+    .spot-tabs-arrow {
+        min-width: 36px;
+        min-height: 36px;
+    }
+    .spot-type-chip-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+    }
+    .spot-review-star {
+        min-width: 36px;
+        min-height: 40px;
+    }
+    .spot-comment-vote-btn,
+    .spot-reports-chip {
+        min-height: 36px;
+    }
+    .spot-reports-all,
+    .spot-comments-sort-btn,
+    .spot-report-delete,
+    .spot-card-page-link {
+        display: inline-block;
+        padding: 10px 4px;
+    }
+}

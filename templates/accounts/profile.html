@@ -2,12 +2,12 @@
 {% block title %}Профиль{% endblock %}
 {% block content %}
 <h1>{{ profile.user.username }}</h1>
-<p>Рейтинг пользователя: {{ profile.rating }} (оценок получено: {{ profile.user.received_user_ratings.count }})</p>
+<p>Рейтинг пользователя: {% if profile.rating_count %}★ {{ profile.rating|floatformat:1 }} (оценок: {{ profile.rating_count }}){% else %}<span class="muted">пока нет оценок</span>{% endif %}</p>
 <p>О себе: {{ profile.bio|default:"—" }}</p>
 <h2>Мои места</h2>
 <ul>
 {% for spot in profile.user.spots.all %}
-    <li><a href="{% url 'spots:spot_detail' spot.pk %}">{{ spot.title }}</a> — рейтинг {{ spot.average_rating|default:"—" }}</li>
+    <li><a href="{% url 'spots:spot_detail' spot.pk %}">{{ spot.title }}</a> — {% if spot.average_rating %}★ {{ spot.average_rating|floatformat:1 }}{% else %}<span class="muted">нет оценок</span>{% endif %}</li>
 {% empty %}
     <li>Вы ещё не добавили ни одного места.</li>
 {% endfor %}

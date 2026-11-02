@@ -10,10 +10,10 @@
     <p><label>Описание: <textarea name="description">{{ spot.description }}</textarea></label></p>
     <p>Виды грибов на этом месте (можно выбрать несколько):</p>
     {% for group in mushroom_groups %}
-        <fieldset style="margin-bottom: 8px;">
+        <fieldset class="checkbox-group">
             <legend>{{ group.name }}</legend>
             {% for type in group.types %}
-                <label style="display: inline-block; margin-right: 12px;">
+                <label>
                     <input type="checkbox" name="mushroom_types" value="{{ type.id }}" {% if type.id in selected_type_ids %}checked{% endif %}> {{ type.name }}
                 </label>
             {% endfor %}
@@ -21,9 +21,9 @@
     {% endfor %}
     {% if hazards %}
         <p>Опасности на этом месте (необязательно):</p>
-        <fieldset style="margin-bottom: 8px;">
+        <fieldset class="checkbox-group">
             {% for hazard in hazards %}
-                <label style="display: inline-block; margin-right: 12px;">
+                <label>
                     <input type="checkbox" name="hazards" value="{{ hazard.id }}" {% if hazard.id in selected_hazard_ids %}checked{% endif %}> {{ hazard.name }}
                 </label>
             {% endfor %}

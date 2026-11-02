@@ -3,7 +3,10 @@ from io import BytesIO
 from types import SimpleNamespace
 from unittest import mock
 
+import re
+
 from django.contrib import admin
+from django.contrib.staticfiles import finders
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
@@ -665,4 +668,66 @@ class AvatarMergeTests(TestCase):
         self.assertNotContains(response, 'user-avatar-toggle')
         self.assertContains(response, 'data-profile-open')
         self.assertContains(response, reverse('accounts:profile'))   # без JS остаётся обычная ссылка
+
+
+class StaticStylesTests(TestCase):
+    """Стили вынесены в static/css: проверяем подключение и целостность общих значений."""
+
+    def css(self, name):
+        path = finders.find(f'css/{name}.css')
+        self.assertIsNotNone(path, f'css/{name}.css не найден')
+        with open(path, encoding='utf-8') as f:
+            return f.read()
+
+    def test_map_page_links_all_stylesheets_in_cascade_order(self):
+        html = self.client.get(reverse('spots:map')).content.decode()
+        order = [html.index(f'css/{name}.css') for name in ('tokens', 'base', 'pages', 'map', 'map-phone')]
+        self.assertEqual(order, sorted(order))   # телефонные правила обязаны идти после основных
+
+    def test_other_pages_do_not_load_map_styles(self):
+        html = self.client.get(reverse('accounts:login')).content.decode()
+        self.assertIn('css/tokens.css', html)
+        self.assertIn('css/pages.css', html)
+        self.assertNotIn('css/map.css', html)
+
+    def test_no_inline_style_blocks_left_in_templates(self):
+        for name in ('spots:map', 'accounts:login'):
+            self.assertNotContains(self.client.get(reverse(name)), '<style')
+
+    def test_every_css_variable_in_use_is_defined(self):
+        sources = {name: self.css(name) for name in ('tokens', 'base', 'pages', 'map', 'map-phone')}
+        defined = set(re.findall(r'(--[a-z0-9-]+)\s*:', '\n'.join(sources.values())))
+        # переменные, которые задаёт JS или разметка в момент работы (а не файлы стилей)
+        runtime = set(re.findall(r"setProperty\('(--[a-z0-9-]+)'", open('templates/spots/map.html', encoding='utf-8').read()))
+        for name, text in sources.items():
+            used = set(re.findall(r'var\((--[a-z0-9-]+)\s*[,)]', text))
+            self.assertEqual(used - defined - runtime, set(), f'в {name}.css использованы неопределённые переменные')
+
+    def test_status_colors_have_a_single_source(self):
+        tokens, map_css = self.css('tokens'), self.css('map')
+        for color in ('#3fb950', '#8bc34a', '#e5534b'):
+            self.assertIn(color, tokens)
+            self.assertNotIn(color, map_css)     # правила используют var(--status-*), а не копии цветов
+        html = self.client.get(reverse('spots:map')).content.decode()
+        self.assertIn("read('--status-today'", html)   # метки на карте берут цвет из тех же токенов
+
+    def test_page_container_only_outside_the_map(self):
+        self.assertContains(self.client.get(reverse('accounts:login')), '<main class="page">')
+        self.assertNotContains(self.client.get(reverse('spots:map')), '<main class="page">')
+
+    def test_head_has_favicon_description_and_theme_color(self):
+        html = self.client.get(reverse('spots:map')).content.decode()
+        for needle in ('rel="icon"', 'name="description"', 'name="theme-color"'):
+            self.assertIn(needle, html)
+
+
+class ReadmeTests(TestCase):
+    def test_readme_images_exist(self):
+        import os
+        with open('README.md', encoding='utf-8') as f:
+            text = f.read()
+        images = re.findall(r'src="(docs/screenshots/[^"]+)"', text)
+        self.assertGreaterEqual(len(images), 4)
+        for path in images:
+            self.assertTrue(os.path.exists(path), f'README ссылается на отсутствующий файл {path}')
 

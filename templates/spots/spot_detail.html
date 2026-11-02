@@ -19,9 +19,9 @@
     {% endfor %}
 </ul>
 {% endif %}
-<p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> (рейтинг автора: {{ spot.author.profile.rating }})</p>
+<p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> {% if spot.author.profile.rating_count %}(★ {{ spot.author.profile.rating|floatformat:1 }}){% endif %}</p>
 <p>Координаты: {{ spot.latitude }}, {{ spot.longitude }}</p>
-<p>Рейтинг места: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок, с учётом веса голосов)</p>
+<p>Рейтинг места: {% if spot.average_rating %}★ {{ spot.average_rating|floatformat:1 }} (оценок: {{ spot.ratings_count }}, с учётом доверия к голосующим){% else %}<span class="muted">пока нет оценок</span>{% endif %}</p>
 
 <h2>Маршрут до места</h2>
 <p>
@@ -29,7 +29,7 @@
     — или кликните на карте ниже, чтобы указать точку старта вручную.
 </p>
 <div id="route-map" style="height: 420px; width: 100%;"></div>
-<p id="route-status" style="color: #555;"></p>
+<p id="route-status" class="muted"></p>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -98,7 +98,7 @@
 {% endif %}
 
 <h2>Оценить автора места</h2>
-<p>Рейтинг пользователя {{ spot.author.username }}: {{ spot.author.profile.rating }}</p>
+<p>Рейтинг пользователя {{ spot.author.username }}: {% if spot.author.profile.rating_count %}★ {{ spot.author.profile.rating|floatformat:1 }} (оценок: {{ spot.author.profile.rating_count }}){% else %}<span class="muted">пока нет оценок</span>{% endif %}</p>
 
 {% if can_rate_author %}
 <form method="post" action="{% url 'accounts:rate_user' spot.author.username %}">

@@ -17,9 +17,9 @@
         {% endfor %}
     </ul>
     {% endif %}
-    <p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> (рейтинг автора: {{ spot.author.profile.rating }})</p>
+    <p>Автор: <a href="{% url 'accounts:public_profile' spot.author.username %}">{{ spot.author.username }}</a> {% if spot.author.profile.rating_count %}(★ {{ spot.author.profile.rating|floatformat:1 }}){% endif %}</p>
     <p>Координаты: {{ spot.latitude }}, {{ spot.longitude }}</p>
-    <p>Рейтинг места: {{ spot.average_rating|default:"—" }} ({{ spot.ratings_count }} оценок, с учётом веса голосов)</p>
+    <p>Рейтинг места: {% if spot.average_rating %}★ {{ spot.average_rating|floatformat:1 }} (оценок: {{ spot.ratings_count }}, с учётом доверия к голосующим){% else %}пока нет оценок{% endif %}</p>
     <p><a href="{% url 'spots:spot_detail' spot.pk %}">🗺 Открыть отдельно (с построением маршрута) →</a></p>
 
     {% if can_rate_spot %}
@@ -36,7 +36,7 @@
     {% endif %}
 
     <h3>Оценить автора места</h3>
-    <p>Рейтинг пользователя {{ spot.author.username }}: {{ spot.author.profile.rating }}</p>
+    <p>Рейтинг пользователя {{ spot.author.username }}: {% if spot.author.profile.rating_count %}★ {{ spot.author.profile.rating|floatformat:1 }} (оценок: {{ spot.author.profile.rating_count }}){% else %}<span>пока нет оценок</span>{% endif %}</p>
     {% if can_rate_author %}
     <form method="post" action="{% url 'accounts:rate_user' spot.author.username %}" class="panel-ajax-form">
         {% csrf_token %}
