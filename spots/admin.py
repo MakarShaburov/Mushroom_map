@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, MushroomTypeImage,
-    SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport,
+    Notification, SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport, SpotSubscription,
 )
 
 
@@ -99,3 +99,17 @@ class SpotReportAdmin(admin.ModelAdmin):
     search_fields = ('spot__title', 'author__username', 'note')
     date_hierarchy = 'visited_on'
     filter_horizontal = ('types',)
+
+
+@admin.register(SpotSubscription)
+class SpotSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'spot', 'created_at')
+    search_fields = ('user__username', 'spot__title')
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('user', 'spot', 'result', 'count', 'is_read', 'updated_at')
+    list_filter = ('is_read', 'result')
+    search_fields = ('user__username', 'spot__title')
+

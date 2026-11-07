@@ -1208,9 +1208,33 @@
             });
     }
 
+    // «Следить»: включает или выключает уведомления о находках на месте; сервер отвечает
+    // JSON, подпись кнопки меняется на месте без перерисовки карточки.
+    function toggleSpotFollow(btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        fetch(btn.dataset.followUrl, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
+            .then((res) => {
+                if (!res.ok) throw new Error('request failed');
+                return res.json();
+            })
+            .then((data) => {
+                btn.classList.toggle('active', data.subscribed);
+                btn.setAttribute('aria-pressed', data.subscribed ? 'true' : 'false');
+                btn.querySelector('.spot-follow-label').textContent = data.subscribed ? 'Вы следите' : 'Следить';
+            })
+            .catch(() => {})
+            .finally(() => { btn.disabled = false; });
+    }
+
     // Один обработчик на контейнер карточки (он не пересоздаётся): работает и для
     // строк, подгруженных во вкладке позже.
     document.getElementById('spot-card-content').addEventListener('click', (e) => {
+        const followBtn = e.target.closest('.spot-follow-btn');
+        if (followBtn) {
+            toggleSpotFollow(followBtn);
+            return;
+        }
         const openBtn = e.target.closest('.spot-report-open');
         if (openBtn) {
             openReportModal(openBtn.closest('.spot-card').dataset.spotId);
@@ -1653,6 +1677,34 @@
         return checked && checked.value !== '' ? Number(checked.value) : null;
     }
 
+    // Показать место на карте и открыть его карточку: клик по списку, по уведомлению или ссылка
+    // ?spot=ID. На телефоне центр сдвинут так, чтобы метка не оказалась под шторкой.
+    function showSpotOnMap(spot) {
+        let target = L.latLng(spot.latitude, spot.longitude);
+        if (phoneMq.matches) {
+            // центр карты ниже метки на полвысоты шторки — метка окажется посреди видимой части
+            target = map.unproject(map.project(target, 14).add([0, sheetClearancePx() / 2]), 14);
+        }
+        map.setView(target, 14);
+        openSpotSearchCard(spot.id);
+    }
+
+    // Клик по уведомлению в колокольчике (верхняя панель) на странице карты открывает место
+    // здесь же, не перезагружая страницу; на остальных страницах это обычная ссылка /?spot=ID.
+    const notificationsPanel = document.querySelector('.nav-notifications');
+    if (notificationsPanel) {
+        notificationsPanel.addEventListener('click', (e) => {
+            const link = e.target.closest('[data-notification-spot]');
+            if (!link) return;
+            e.preventDefault();
+            const spotId = Number(link.dataset.notificationSpot);
+            link.closest('details').open = false;
+            const entry = allSpots.find((item) => item.data.id === spotId);
+            if (entry) showSpotOnMap(entry.data);
+            else openSpotSearchCard(spotId);
+        });
+    }
+
     function applyFilters() {
         const text = document.getElementById('search-text').value.trim().toLowerCase();
         const selectedTypes = getSelectedTypes();
@@ -1678,15 +1730,7 @@
                 if (!spotLayer.hasLayer(entry.marker)) spotLayer.addLayer(entry.marker);
                 visibleCount += 1;
 
-                const item = buildSpotListItem(entry.data, selectedTypes, () => {
-                    let target = L.latLng(entry.data.latitude, entry.data.longitude);
-                    if (phoneMq.matches) {
-                        // центр карты ниже метки на полвысоты шторки — метка окажется посреди видимой части
-                        target = map.unproject(map.project(target, 14).add([0, sheetClearancePx() / 2]), 14);
-                    }
-                    map.setView(target, 14);
-                    openSpotSearchCard(entry.data.id);
-                });
+                const item = buildSpotListItem(entry.data, selectedTypes, () => showSpotOnMap(entry.data));
                 resultsBox.appendChild(item);
             } else {
                 if (spotLayer.hasLayer(entry.marker)) spotLayer.removeLayer(entry.marker);
@@ -1753,6 +1797,14 @@
                 allSpots.push({ data: spot, marker: marker });
             });
             applyFilters();
+
+            // Ссылка вида /?spot=ID (из уведомления с другой страницы) открывает это место.
+            const wantedSpot = new URLSearchParams(location.search).get('spot');
+            if (wantedSpot) {
+                const wanted = allSpots.find((item) => String(item.data.id) === wantedSpot);
+                if (wanted) showSpotOnMap(wanted.data);
+                history.replaceState(null, '', location.pathname);
+            }
         });
 
     // --- Сворачивание/разворачивание панели поиска ---

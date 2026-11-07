@@ -433,6 +433,76 @@ class PhotoLike(models.Model):
         return f'{self.user} ❤ {self.content_type.model}#{self.object_id}'
 
 
+class SpotSubscription(models.Model):
+    """Подписка пользователя на место: о находках на нём приходят уведомления
+    (см. spots/notifications.py). Одна подписка на пару «пользователь и место»."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='spot_subscriptions', verbose_name='Подписчик',
+    )
+    spot = models.ForeignKey(
+        MushroomSpot, on_delete=models.CASCADE,
+        related_name='subscriptions', verbose_name='Место',
+    )
+    created_at = models.DateTimeField('Подписан с', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Подписка на место'
+        verbose_name_plural = 'Подписки на места'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'spot'], name='unique_spot_subscription'),
+        ]
+
+    def __str__(self):
+        return f'{self.user} следит за «{self.spot}»'
+
+
+class Notification(models.Model):
+    """Уведомление подписчику о находке на отслеживаемом месте.
+
+    Пока уведомление не прочитано, новые находки на том же месте не плодят новых
+    уведомлений, а увеличивают count: подписчика не заваливает, если за день на
+    место сходили пятеро. Результат и дата копируются из последнего отчёта, чтобы
+    уведомление не зависело от того, удалят ли потом сам отчёт."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='notifications', verbose_name='Кому',
+    )
+    spot = models.ForeignKey(
+        MushroomSpot, on_delete=models.CASCADE,
+        related_name='notifications', verbose_name='Место',
+    )
+    report = models.ForeignKey(
+        SpotReport, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', verbose_name='Последний отчёт',
+    )
+    result = models.CharField('Результат последнего отчёта', max_length=10, choices=SpotReport.Result.choices)
+    visited_on = models.DateField('Дата последней находки')
+    count = models.PositiveIntegerField('Сколько находок', default=1)
+    is_read = models.BooleanField('Прочитано', default=False)
+    created_at = models.DateTimeField('Создано', auto_now_add=True)
+    updated_at = models.DateTimeField('Обновлено', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Уведомление'
+        verbose_name_plural = 'Уведомления'
+        ordering = ['-updated_at', '-pk']
+        indexes = [models.Index(fields=['user', 'is_read'], name='notification_user_unread')]
+
+    def __str__(self):
+        return f'{self.user}: {self.spot} ({self.count})'
+
+    @property
+    def headline(self):
+        """Текст уведомления без названия места."""
+        if self.count > 1:
+            return f'новые отчёты о находках: {self.count}'
+        return 'нашли грибы: много' if self.result == SpotReport.Result.PLENTY else 'нашли грибы: немного'
+
+
 def has_visited_author(visitor, author):
     """Был ли visitor на местах author: есть его отчёт о посещении хотя бы одного из них.
     Условие, чтобы оценить пользователя (accounts.views.rate_user)."""

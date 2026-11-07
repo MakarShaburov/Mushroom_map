@@ -1,0 +1,16 @@
+{% if notifications %}
+    <div class="notifications" data-ids="{% for n in notifications %}{% if not n.is_read %}{{ n.pk }},{% endif %}{% endfor %}">
+        {% for n in notifications %}
+            <a class="notification{% if not n.is_read %} unread{% endif %}" href="{% url 'spots:map' %}?spot={{ n.spot_id }}" data-notification-spot="{{ n.spot_id }}">
+                <span class="notification-icon" aria-hidden="true">{% if n.result == 'plenty' %}🍄{% else %}🧺{% endif %}</span>
+                <span class="notification-text">
+                    <span class="notification-title">{{ n.spot.title }}</span>
+                    <span class="notification-headline">{{ n.headline }}</span>
+                    <span class="notification-meta">{{ n.visited_on|date:"d.m" }} · {{ n.updated_at|timesince }} назад</span>
+                </span>
+            </a>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="notifications-empty">Пока ничего нового. Нажмите «Следить» в карточке места, и мы сообщим, когда там найдут грибы.</p>
+{% endif %}

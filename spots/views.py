@@ -7,14 +7,16 @@ from django.db.models import Count, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET, require_POST
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from . import identify
 from .models import (
     CommentPhoto, CommentVote, MushroomCategory, MushroomSpot, MushroomType, PhotoLike,
-    SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport, has_visited_author,
+    SpotComment, SpotHazard, SpotPhoto, SpotRating, SpotReport, SpotSubscription, has_visited_author,
 )
+from .notifications import notify_subscribers
 from .seasonality import MONTH_GENITIVE, MONTH_NAMES, build_month_days, build_seasonality
 from .status import FOUND_RESULTS, STATUS_WINDOW_DAYS, compute_spot_status
 from .utils import ru_plural
@@ -29,6 +31,7 @@ MAX_COMMENT_PHOTOS = 10
 REPORTS_IN_CARD = 50          # сколько последних отчётов выводим в карточке места
 REPORTS_PAGE_SIZE = 20        # отчётов за раз во вкладке «Отчёты»
 REPORT_NOTE_MAX = 300
+NOTIFICATIONS_LIMIT = 20       # сколько уведомлений показывает колокольчик
 # Подсказки вместо звёзд, когда оценить место нельзя (причины — MushroomSpot.rating_block_reason).
 RATE_HINTS = {
     'author': 'Своё место оценить нельзя.',
@@ -170,7 +173,9 @@ def _spot_card_context(request, spot):
     my_score = 0
     my_rating = None
     rate_reason = None
+    is_subscribed = False
     if request.user.is_authenticated:
+        is_subscribed = SpotSubscription.objects.filter(user=request.user, spot=spot).exists()
         my_rating = spot.ratings.filter(user=request.user).first()
         my_score = my_rating.score if my_rating else 0
         rate_reason = spot.rating_block_reason(request.user)
@@ -237,6 +242,7 @@ def _spot_card_context(request, spot):
         'spot_photos': spot_photos,
         'rounded_rating': rounded_rating,
         'ratings_word': ratings_word,
+        'is_subscribed': is_subscribed,
         'can_rate': rate_reason is None and request.user.is_authenticated,
         'rate_hint': RATE_HINTS.get(rate_reason, ''),
         'my_score': my_score,
@@ -395,6 +401,9 @@ def spot_report_create(request, pk):
         return _report_error(f'Можно указать дату не раньше чем за {REPORT_MAX_BACKDATE_DAYS} дней.')
 
     note = request.POST.get('note', '').strip()[:REPORT_NOTE_MAX]
+    # Отчёт за ту же дату обновляется: подписчикам пишем только о новой находке, а не о правке
+    # заметки или о повторной отправке того же отчёта.
+    previous = SpotReport.objects.filter(spot=spot, author=request.user, visited_on=visited_on).first()
     report, _ = SpotReport.objects.update_or_create(
         spot=spot, author=request.user, visited_on=visited_on,
         defaults={'result': result, 'note': note},
@@ -404,6 +413,9 @@ def spot_report_create(request, pk):
     else:
         type_ids = [int(v) for v in request.POST.getlist('types') if v.isdigit()]
         report.types.set(MushroomType.objects.filter(pk__in=type_ids))
+
+    if result in FOUND_RESULTS and (previous is None or previous.result not in FOUND_RESULTS):
+        notify_subscribers(report)
 
     return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
 
@@ -677,3 +689,47 @@ def spot_delete(request, pk):
     if request.headers.get(PANEL_HEADER):
         return JsonResponse({'deleted': False}, status=403)
     return redirect('spots:spot_detail', pk=pk)
+
+
+@login_required
+@require_POST
+def spot_subscribe_toggle(request, pk):
+    """Включает или выключает слежение за местом. Отвечает JSON {'subscribed': bool}:
+    кнопка в карточке меняет подпись на месте, не перерисовывая карточку."""
+    spot = get_object_or_404(MushroomSpot, pk=pk)
+    subscription, created = SpotSubscription.objects.get_or_create(user=request.user, spot=spot)
+    if not created:
+        subscription.delete()
+    return JsonResponse({'subscribed': created})
+
+
+@login_required
+@require_GET
+def notifications_list(request):
+    """Список уведомлений для колокольчика в верхней панели (HTML-партиал). Сам по себе
+    ничего не отмечает прочитанным: это делает notifications_read после показа."""
+    notifications = list(request.user.notifications.select_related('spot')[:NOTIFICATIONS_LIMIT])
+    return render(request, 'spots/_notifications.html', {'notifications': notifications})
+
+
+@login_required
+@require_POST
+def notifications_read(request):
+    """Отмечает уведомления прочитанными: только показанные (ids), а если ids нет — все.
+    Явные ids нужны, чтобы не «прочитать» уведомление, пришедшее, пока список открывался."""
+    unread = request.user.notifications.filter(is_read=False)
+    ids = [int(v) for v in request.POST.getlist('ids') if v.isdigit()]
+    if ids:
+        unread = unread.filter(pk__in=ids)
+    unread.update(is_read=True)   # update не трогает updated_at: порядок списка не меняется
+    return JsonResponse({'unread': request.user.notifications.filter(is_read=False).count()})
+
+
+@never_cache
+@require_GET
+def notifications_count(request):
+    """Число непрочитанных для значка на колокольчике (его опрашивает страница)."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'unread': 0})
+    return JsonResponse({'unread': request.user.notifications.filter(is_read=False).count()})
+

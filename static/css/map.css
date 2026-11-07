@@ -1858,6 +1858,42 @@ button.season-col:focus-visible {
 .spot-report-open:hover {
     border-color: var(--link);
 }
+/* Кнопки действий под статусом места: отчёт и слежение. В узкой панели «Следить» уходит на
+   вторую строку, на телефоне обе помещаются в одну. */
+.spot-actions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 6px 0 12px;
+}
+.spot-actions-row .spot-report-open {
+    flex: 1 1 auto;
+    width: auto;
+    margin: 0;
+}
+.spot-follow-btn {
+    flex: 1 1 auto;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.spot-follow-btn:hover {
+    border-color: var(--link);
+}
+.spot-follow-btn.active {
+    border-color: var(--link);
+    background: rgba(46, 83, 57, 0.14);
+}
+.spot-follow-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
 .spot-reports {
     margin-bottom: 16px;
 }

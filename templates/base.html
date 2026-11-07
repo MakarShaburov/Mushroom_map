@@ -27,6 +27,16 @@
         <div class="nav-actions">
             {% if user.is_authenticated %}
                 <a class="nav-btn" href="{% url 'spots:spot_create' %}"><span aria-hidden="true">＋</span><span class="nav-label-long">Добавить место</span><span class="nav-label-short">Добавить</span></a>
+                <details class="nav-bell">
+                    <summary aria-label="Уведомления{% if unread_notifications.count %}: непрочитанных {{ unread_notifications.count }}{% endif %}">
+                        <span class="nav-bell-icon" aria-hidden="true">🔔</span>
+                        <span class="nav-bell-badge"{% if not unread_notifications.count %} hidden{% endif %}>{{ unread_notifications.badge }}</span>
+                    </summary>
+                    <div class="nav-menu nav-notifications" data-list-url="{% url 'spots:notifications_list' %}" data-read-url="{% url 'spots:notifications_read' %}" data-count-url="{% url 'spots:notifications_count' %}">
+                        <div class="nav-menu-head"><strong>Уведомления</strong></div>
+                        <div class="nav-notifications-body" aria-live="polite">Загрузка…</div>
+                    </div>
+                </details>
                 <details class="nav-user">
                     <summary aria-label="Меню пользователя {{ user.username }}">
                         <span class="nav-avatar">{{ user.username|first|upper }}</span>
@@ -176,18 +186,76 @@
         })();
     </script>
     <script>
-        // Меню пользователя в верхней панели (<details>) закрывается по клику снаружи и по Escape.
+        // Меню верхней панели (пользователь, уведомления — это <details>) закрываются по клику
+        // снаружи и по Escape; открыто может быть только одно.
         (function () {
-            const menu = document.querySelector('details.nav-user');
-            if (!menu) return;
+            const menus = document.querySelectorAll('details.nav-user, details.nav-bell');
+            if (!menus.length) return;
             document.addEventListener('click', function (e) {
-                if (menu.open && !menu.contains(e.target)) menu.open = false;
+                menus.forEach(function (m) { if (m.open && !m.contains(e.target)) m.open = false; });
             });
             document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape' && menu.open) {
-                    menu.open = false;
-                    menu.querySelector('summary').focus();
-                }
+                if (e.key !== 'Escape') return;
+                menus.forEach(function (m) {
+                    if (m.open) { m.open = false; m.querySelector('summary').focus(); }
+                });
+            });
+            menus.forEach(function (m) {
+                m.addEventListener('toggle', function () {
+                    if (m.open) menus.forEach(function (o) { if (o !== m) o.open = false; });
+                });
+            });
+        })();
+    </script>
+    <script>
+        // Колокольчик: при открытии подгружает список, затем отмечает показанные уведомления
+        // прочитанными (значок гаснет, а в списке они остаются подсвеченными). Число на значке
+        // обновляется раз в минуту и при возвращении на вкладку.
+        (function () {
+            const bell = document.querySelector('details.nav-bell');
+            if (!bell) return;
+            const panel = bell.querySelector('.nav-notifications');
+            const body = bell.querySelector('.nav-notifications-body');
+            const badge = bell.querySelector('.nav-bell-badge');
+            const summary = bell.querySelector('summary');
+            const csrf = function () {
+                const field = document.querySelector('[name=csrfmiddlewaretoken]');
+                return field ? field.value : '';
+            };
+            function setBadge(count) {
+                badge.hidden = !count;
+                badge.textContent = count > 9 ? '9+' : String(count);
+                summary.setAttribute('aria-label', count ? 'Уведомления: непрочитанных ' + count : 'Уведомления');
+            }
+            function markRead(ids) {
+                const data = new FormData();
+                ids.forEach(function (id) { data.append('ids', id); });
+                fetch(panel.dataset.readUrl, { method: 'POST', headers: { 'X-CSRFToken': csrf() }, body: data })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) { setBadge(d.unread); })
+                    .catch(function () {});
+            }
+            function refreshCount() {
+                fetch(panel.dataset.countUrl)
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) { setBadge(d.unread); })
+                    .catch(function () {});
+            }
+            bell.addEventListener('toggle', function () {
+                if (!bell.open) return;
+                fetch(panel.dataset.listUrl)
+                    .then(function (r) { if (!r.ok) throw new Error('failed'); return r.text(); })
+                    .then(function (html) {
+                        body.innerHTML = html;
+                        const list = body.querySelector('.notifications');
+                        const ids = list ? list.dataset.ids.split(',').filter(Boolean) : [];
+                        if (ids.length) markRead(ids);
+                    })
+                    .catch(function () { body.textContent = 'Не удалось загрузить уведомления.'; });
+            });
+            setInterval(function () { if (document.visibilityState === 'visible') refreshCount(); }, 60000);
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'visible') refreshCount();
             });
         })();
     </script>

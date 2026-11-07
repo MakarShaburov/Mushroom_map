@@ -55,7 +55,10 @@
     <p class="spot-card-author">Автор: <span class="user-link" data-user-open="{{ spot.author.username }}" data-user-card-url="{% url 'accounts:user_card' spot.author.username %}">{{ spot.author.username }}</span></p>
 
     {% if user.is_authenticated %}
+        <div class="spot-actions-row">
         <button type="button" class="spot-report-open">📝 Сообщить о посещении</button>
+        <button type="button" class="spot-follow-btn{% if is_subscribed %} active{% endif %}" data-follow-url="{% url 'spots:spot_subscribe_toggle' spot.pk %}" aria-pressed="{% if is_subscribed %}true{% else %}false{% endif %}" title="Уведомим, когда здесь найдут грибы"><span aria-hidden="true">🔔</span> <span class="spot-follow-label">{% if is_subscribed %}Вы следите{% else %}Следить{% endif %}</span></button>
+        </div>
     {% else %}
         <p class="spot-card-login-hint"><a href="{% url 'accounts:login' %}" data-auth-open="login">Войдите</a>, чтобы сообщить о посещении.</p>
     {% endif %}

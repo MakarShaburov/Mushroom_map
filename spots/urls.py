@@ -23,6 +23,10 @@ urlpatterns = [
     path('spots/<int:pk>/comments/', views.spot_comment_create, name='spot_comment_create'),
     path('comments/<int:comment_id>/vote/', views.comment_vote, name='comment_vote'),
     path('spots/<int:pk>/rate/', views.spot_rate, name='spot_rate'),
+    path('spots/<int:pk>/subscribe/', views.spot_subscribe_toggle, name='spot_subscribe_toggle'),
+    path('notifications/', views.notifications_list, name='notifications_list'),
+    path('notifications/read/', views.notifications_read, name='notifications_read'),
+    path('notifications/count/', views.notifications_count, name='notifications_count'),
     path('spots/<int:pk>/edit/', views.spot_edit, name='spot_edit'),
     path('spots/<int:pk>/delete/', views.spot_delete, name='spot_delete'),
 ]

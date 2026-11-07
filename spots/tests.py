@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 from types import SimpleNamespace
 from unittest import mock
@@ -9,15 +9,19 @@ from django.contrib import admin
 from django.contrib.staticfiles import finders
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import RequestFactory, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 from django.urls import reverse
 from PIL import Image
 
-from accounts.models import UserRating
+from accounts.models import UserBlock, UserRating
 from accounts.utils import trusted_rating, vote_weight
 
 from . import identify
-from .models import MushroomSpot, MushroomType, SpotComment, SpotRating, SpotReport
+from .models import MushroomSpot, MushroomType, Notification, SpotComment, SpotRating, SpotReport, SpotSubscription
+from .notifications import notify_subscribers
 from .seasonality import build_month_days, build_seasonality
 
 
@@ -730,4 +734,274 @@ class ReadmeTests(TestCase):
         self.assertGreaterEqual(len(images), 4)
         for path in images:
             self.assertTrue(os.path.exists(path), f'README ссылается на отсутствующий файл {path}')
+
+
+@FAST_HASHER
+class NotificationLogicTests(TestCase):
+    """Кому и когда приходят уведомления о находках (spots/notifications.py)."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.owner = User.objects.create_user('owner', 'o@example.com', 'pw')
+        self.reporter = User.objects.create_user('reporter', 'r@example.com', 'pw')
+        self.subscriber = User.objects.create_user('follower', 'f@example.com', 'pw')
+        self.other = User.objects.create_user('other', 'x@example.com', 'pw')
+        self.spot = MushroomSpot.objects.create(
+            author=self.owner, title='Опушка', description='-', latitude=55.0, longitude=37.0,
+        )
+        SpotSubscription.objects.create(user=self.subscriber, spot=self.spot)
+        self.today = timezone.localdate()
+
+    def report(self, result='plenty', days_ago=0, author=None):
+        return SpotReport.objects.create(
+            spot=self.spot, author=author or self.reporter,
+            visited_on=self.today - timedelta(days=days_ago), result=result,
+        )
+
+    def test_found_report_notifies_subscriber(self):
+        self.assertEqual(notify_subscribers(self.report('plenty')), 1)
+        note = Notification.objects.get()
+        self.assertEqual((note.user, note.spot, note.result, note.count, note.is_read),
+                         (self.subscriber, self.spot, 'plenty', 1, False))
+        self.assertEqual(note.headline, 'нашли грибы: много')
+
+    def test_some_report_headline(self):
+        notify_subscribers(self.report('some'))
+        self.assertEqual(Notification.objects.get().headline, 'нашли грибы: немного')
+
+    def test_report_without_mushrooms_does_not_notify(self):
+        self.assertEqual(notify_subscribers(self.report('none')), 0)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_late_report_about_an_old_visit_does_not_notify(self):
+        self.assertEqual(notify_subscribers(self.report('plenty', days_ago=8)), 0)
+        self.assertEqual(notify_subscribers(self.report('plenty', days_ago=7, author=self.other)), 1)   # граница включена
+
+    def test_author_of_the_report_is_not_notified_about_it(self):
+        SpotSubscription.objects.create(user=self.reporter, spot=self.spot)
+        notify_subscribers(self.report('plenty'))
+        self.assertEqual(list(Notification.objects.values_list('user__username', flat=True)), ['follower'])
+
+    def test_subscriber_who_blocked_the_author_is_skipped(self):
+        UserBlock.objects.create(blocker=self.subscriber, blocked=self.reporter)
+        self.assertEqual(notify_subscribers(self.report('plenty')), 0)
+
+    def test_blocking_the_other_way_does_not_matter(self):
+        UserBlock.objects.create(blocker=self.reporter, blocked=self.subscriber)
+        self.assertEqual(notify_subscribers(self.report('plenty')), 1)
+
+    def test_people_who_do_not_follow_get_nothing(self):
+        notify_subscribers(self.report('plenty'))
+        self.assertFalse(Notification.objects.filter(user=self.other).exists())
+
+    def test_every_subscriber_is_notified(self):
+        SpotSubscription.objects.create(user=self.other, spot=self.spot)
+        self.assertEqual(notify_subscribers(self.report('plenty')), 2)
+        self.assertEqual(Notification.objects.count(), 2)
+
+    def test_finds_pile_up_in_one_unread_notification(self):
+        notify_subscribers(self.report('some', days_ago=2))
+        notify_subscribers(self.report('plenty', days_ago=0, author=self.other))
+        note = Notification.objects.get()
+        self.assertEqual((note.count, note.result, note.visited_on), (2, 'plenty', self.today))
+        self.assertEqual(note.headline, 'новые отчёты о находках: 2')
+
+    def test_new_notification_after_the_previous_was_read(self):
+        notify_subscribers(self.report('plenty'))
+        Notification.objects.update(is_read=True)
+        notify_subscribers(self.report('some', author=self.other))
+        self.assertEqual(Notification.objects.count(), 2)
+        self.assertEqual(Notification.objects.filter(is_read=False).count(), 1)
+
+    def test_older_find_does_not_move_the_date_back(self):
+        notify_subscribers(self.report('plenty', days_ago=0))
+        notify_subscribers(self.report('some', days_ago=3, author=self.other))
+        self.assertEqual(Notification.objects.get().visited_on, self.today)
+
+    def test_notification_survives_deleting_the_report(self):
+        report = self.report('plenty')
+        notify_subscribers(report)
+        report.delete()
+        note = Notification.objects.get()
+        self.assertIsNone(note.report)
+        self.assertEqual(note.result, 'plenty')
+
+
+@FAST_HASHER
+class SubscriptionViewsTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.owner = User.objects.create_user('owner', 'o@example.com', 'pw')
+        self.user = User.objects.create_user('follower', 'f@example.com', 'pw')
+        self.reporter = User.objects.create_user('reporter', 'r@example.com', 'pw')
+        self.spot = MushroomSpot.objects.create(
+            author=self.owner, title='Опушка', description='-', latitude=55.0, longitude=37.0,
+        )
+        self.toggle_url = reverse('spots:spot_subscribe_toggle', args=[self.spot.pk])
+
+    def test_toggle_subscribes_then_unsubscribes(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(self.toggle_url).json(), {'subscribed': True})
+        self.assertTrue(SpotSubscription.objects.filter(user=self.user, spot=self.spot).exists())
+        self.assertEqual(self.client.post(self.toggle_url).json(), {'subscribed': False})
+        self.assertFalse(SpotSubscription.objects.exists())
+
+    def test_toggle_needs_login_and_post(self):
+        self.assertEqual(self.client.post(self.toggle_url).status_code, 302)   # гостя отправляют входить
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(self.toggle_url).status_code, 405)
+        self.assertFalse(SpotSubscription.objects.exists())
+
+    def test_card_button_reflects_subscription(self):
+        url = reverse('spots:spot_search_card', args=[self.spot.pk])
+        self.assertNotContains(self.client.get(url), 'spot-follow-btn')   # гостю кнопки нет
+        self.client.force_login(self.user)
+        off = self.client.get(url)
+        self.assertContains(off, 'aria-pressed="false"')
+        self.assertContains(off, '>Следить<')
+        SpotSubscription.objects.create(user=self.user, spot=self.spot)
+        on = self.client.get(url)
+        self.assertContains(on, 'spot-follow-btn active')
+        self.assertContains(on, 'aria-pressed="true"')
+        self.assertContains(on, '>Вы следите<')
+
+    def make_note(self, user, spot=None, **kwargs):
+        defaults = dict(result='plenty', visited_on=timezone.localdate())
+        defaults.update(kwargs)
+        return Notification.objects.create(user=user, spot=spot or self.spot, **defaults)
+
+    def test_list_shows_only_own_notifications_and_marks_unread(self):
+        mine = self.make_note(self.user)
+        self.make_note(self.owner)
+        self.make_note(self.user, is_read=True, spot=MushroomSpot.objects.create(
+            author=self.owner, title='Старое', description='-', latitude=55.1, longitude=37.1))
+        self.client.force_login(self.user)
+        html = self.client.get(reverse('spots:notifications_list')).content.decode()
+        self.assertEqual(len(re.findall(r'class="notification(?: unread)?"', html)), 2)   # только сами уведомления
+        self.assertEqual(html.count('notification unread'), 1)
+        self.assertIn(f'data-ids="{mine.pk},"', html)                 # прочитанные в ids не попадают
+        self.assertIn(f'/?spot={self.spot.pk}', html)                 # ссылка открывает место на карте
+
+    def test_list_escapes_spot_title(self):
+        self.spot.title = '<script>alert(1)</script>'
+        self.spot.save()
+        self.make_note(self.user)
+        self.client.force_login(self.user)
+        html = self.client.get(reverse('spots:notifications_list')).content.decode()
+        self.assertNotIn('<script>alert(1)</script>', html)
+        self.assertIn('&lt;script&gt;', html)
+
+    def test_empty_list_explains_how_to_get_notifications(self):
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(reverse('spots:notifications_list')), 'Нажмите «Следить»')
+
+    def test_read_marks_only_the_shown_ids(self):
+        first = self.make_note(self.user)
+        second = self.make_note(self.user, spot=MushroomSpot.objects.create(
+            author=self.owner, title='Вторая', description='-', latitude=55.1, longitude=37.1))
+        self.client.force_login(self.user)
+        data = self.client.post(reverse('spots:notifications_read'), {'ids': [first.pk]}).json()
+        self.assertEqual(data, {'unread': 1})
+        self.assertTrue(Notification.objects.get(pk=first.pk).is_read)
+        self.assertFalse(Notification.objects.get(pk=second.pk).is_read)
+
+    def test_read_without_ids_marks_everything_but_only_mine(self):
+        self.make_note(self.user)
+        theirs = self.make_note(self.owner)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(reverse('spots:notifications_read')).json(), {'unread': 0})
+        self.assertFalse(Notification.objects.get(pk=theirs.pk).is_read)
+
+    def test_reading_does_not_reorder_the_list(self):
+        old = self.make_note(self.user)
+        newer = self.make_note(self.user, spot=MushroomSpot.objects.create(
+            author=self.owner, title='Новее', description='-', latitude=55.1, longitude=37.1))
+        self.client.force_login(self.user)
+        self.client.post(reverse('spots:notifications_read'), {'ids': [old.pk]})
+        order = [n.pk for n in self.user.notifications.all()]
+        self.assertEqual(order, [newer.pk, old.pk])
+
+    def test_count_endpoint(self):
+        url = reverse('spots:notifications_count')
+        self.assertEqual(self.client.get(url).json(), {'unread': 0})        # гость: 0, без перенаправления
+        self.make_note(self.user)
+        self.make_note(self.user, is_read=True, spot=MushroomSpot.objects.create(
+            author=self.owner, title='Читаное', description='-', latitude=55.1, longitude=37.1))
+        self.client.force_login(self.user)
+        response = self.client.get(url)
+        self.assertEqual(response.json(), {'unread': 1})
+        self.assertIn('no-cache', response['Cache-Control'])                # значок не должен кэшироваться
+
+    def post_report(self, user, result, **extra):
+        self.client.force_login(user)
+        return self.client.post(
+            reverse('spots:spot_report_create', args=[self.spot.pk]),
+            {'result': result, 'visited_on': timezone.localdate().isoformat(), **extra},
+        )
+
+    def test_posting_a_report_notifies_followers(self):
+        SpotSubscription.objects.create(user=self.user, spot=self.spot)
+        self.post_report(self.reporter, 'plenty')
+        note = Notification.objects.get()
+        self.assertEqual((note.user, note.result), (self.user, 'plenty'))
+
+    def test_editing_the_same_report_does_not_notify_again(self):
+        SpotSubscription.objects.create(user=self.user, spot=self.spot)
+        self.post_report(self.reporter, 'plenty', note='первый')
+        Notification.objects.update(is_read=True)
+        self.post_report(self.reporter, 'plenty', note='поправил заметку')
+        self.assertEqual(Notification.objects.count(), 1)
+        self.assertEqual(Notification.objects.get().count, 1)
+
+    def test_changing_none_to_found_notifies(self):
+        SpotSubscription.objects.create(user=self.user, spot=self.spot)
+        self.post_report(self.reporter, 'none')
+        self.assertEqual(Notification.objects.count(), 0)
+        self.post_report(self.reporter, 'some')                           # тот же день, результат исправлен
+        self.assertEqual(Notification.objects.get().result, 'some')
+
+    def test_report_without_mushrooms_via_view_does_not_notify(self):
+        SpotSubscription.objects.create(user=self.user, spot=self.spot)
+        self.post_report(self.reporter, 'none')
+        self.assertEqual(Notification.objects.count(), 0)
+
+    def test_bell_in_navbar_with_badge(self):
+        self.client.force_login(self.user)
+        page = self.client.get(reverse('spots:map')).content.decode()
+        self.assertIn('class="nav-bell"', page)
+        self.assertRegex(page, r'<span class="nav-bell-badge" hidden>')    # непрочитанных нет — значок скрыт
+        for _ in range(3):
+            self.make_note(self.user, spot=MushroomSpot.objects.create(
+                author=self.owner, title='X', description='-', latitude=55.1, longitude=37.1))
+        page = self.client.get(reverse('spots:map')).content.decode()
+        self.assertRegex(page, r'<span class="nav-bell-badge">3</span>')
+        self.assertIn('непрочитанных 3', page)
+
+    def test_badge_caps_at_nine_plus(self):
+        for i in range(12):
+            self.make_note(self.user, spot=MushroomSpot.objects.create(
+                author=self.owner, title=f'M{i}', description='-', latitude=55.1, longitude=37.1))
+        self.client.force_login(self.user)
+        self.assertRegex(self.client.get(reverse('spots:map')).content.decode(), r'<span class="nav-bell-badge">9\+</span>')
+
+    def test_guest_has_no_bell(self):
+        self.assertNotContains(self.client.get(reverse('spots:map')), 'class="nav-bell"')
+
+    def test_unread_count_is_not_queried_for_html_partials(self):
+        self.client.force_login(self.user)
+        url = reverse('spots:spot_search_card', args=[self.spot.pk])
+        with CaptureQueriesContext(connection) as queries:
+            self.client.get(url)
+        self.assertFalse([q for q in queries if 'spots_notification' in q['sql']],
+                         'число уведомлений считается и для партиала карточки')
+
+    def test_models_are_registered_in_admin(self):
+        self.assertIn(Notification, admin.site._registry)
+        self.assertIn(SpotSubscription, admin.site._registry)
+
+    def test_one_subscription_per_user_and_spot(self):
+        from django.db import IntegrityError, transaction
+        SpotSubscription.objects.create(user=self.user, spot=self.spot)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            SpotSubscription.objects.create(user=self.user, spot=self.spot)
 

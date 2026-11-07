@@ -70,6 +70,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'mushroom_map.context_processors.carto_api_key',
+                'mushroom_map.context_processors.notifications',
             ],
         },
     },

@@ -51,6 +51,62 @@ nav a.nav-btn-solid:hover { background: rgba(255, 255, 255, 0.85); }
 .nav-label-short { display: none; }
 nav a:focus-visible, .nav-user summary:focus-visible { outline: 2px solid var(--nav-text); outline-offset: 2px; }
 
+/* Колокольчик уведомлений: значок с числом непрочитанных и выпадающий список (как меню пользователя). */
+.nav-bell { position: relative; }
+.nav-bell summary {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    list-style: none;
+}
+.nav-bell summary::-webkit-details-marker { display: none; }
+.nav-bell summary:hover, .nav-bell[open] summary { background: rgba(255, 255, 255, 0.14); }
+.nav-bell summary:focus-visible { outline: 2px solid var(--nav-text); outline-offset: 2px; }
+.nav-bell-icon { font-size: 18px; line-height: 1; }
+.nav-bell-badge {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    border-radius: var(--radius-pill);
+    background: var(--danger);
+    color: #fff;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 18px;
+    text-align: center;
+}
+.nav-menu.nav-notifications {
+    width: 340px;
+    max-height: 70vh;
+    padding: 0;
+    overflow-y: auto;
+}
+.nav-notifications .nav-menu-head { margin: 0; padding: var(--space-3) var(--space-4) 10px; }
+.nav-notifications-body { padding: 6px; }
+.notifications { display: flex; flex-direction: column; gap: 2px; }
+.nav-notifications .notification {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px var(--space-3);
+}
+.notification.unread { background: rgba(46, 83, 57, 0.14); box-shadow: inset 3px 0 0 var(--link); }
+.notification-icon { font-size: 20px; line-height: 1.2; }
+.notification-text { display: flex; flex-direction: column; min-width: 0; }
+.notification-title { font-weight: 600; overflow-wrap: anywhere; }
+.notification-headline { font-size: var(--fs-md); }
+.notification-meta { color: var(--muted); font-size: var(--fs-xs); }
+.notifications-empty { margin: 0; padding: 14px var(--space-3); color: var(--muted); font-size: var(--fs-md); }
+
 .nav-user { position: relative; }
 .nav-user summary {
     display: flex;
@@ -117,7 +173,10 @@ input, select, textarea, button { font-family: inherit; }
 @media (max-width: 640px) {
     :root { --nav-h: 48px; }
     nav { padding: 0 12px; gap: 8px; }
-    .nav-logo { font-size: 15px; padding: 12px 0; }
+    .nav-logo { font-size: 15px; padding: 12px 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+    /* Список уведомлений на всю ширину экрана под панелью (у кнопки для него не хватило бы места). */
+    .nav-bell { position: static; }
+    .nav-menu.nav-notifications { position: fixed; top: calc(var(--nav-h) + 6px); left: 8px; right: 8px; width: auto; }
     .nav-actions { gap: 6px; }
     .nav-label-long { display: none; }
     .nav-label-short { display: inline; }
