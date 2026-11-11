@@ -1005,3 +1005,128 @@ class SubscriptionViewsTests(TestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             SpotSubscription.objects.create(user=self.user, spot=self.spot)
 
+
+
+class SpotFormValidationTests(TestCase):
+    """Проверка данных при добавлении и правке места (сценарии 1 и 6 из КТ-2)."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.author = User.objects.create_user('author', 'a@example.com', 'pw')
+        self.other = User.objects.create_user('other', 'o@example.com', 'pw')
+        self.client.force_login(self.author)
+        self.create_url = reverse('spots:spot_create')
+
+    def post_create(self, **overrides):
+        data = {'title': 'Опушка', 'description': 'Берёзы у ручья', 'latitude': '55.5', 'longitude': '37.5'}
+        data.update(overrides)
+        return self.client.post(self.create_url, data)
+
+    def test_valid_spot_is_created(self):
+        white = MushroomType.objects.get(code='white')
+        response = self.post_create(mushroom_types=[white.pk])
+        self.assertRedirects(response, reverse('spots:map'))
+        spot = MushroomSpot.objects.get()
+        self.assertEqual((spot.latitude, spot.longitude, spot.author), (55.5, 37.5, self.author))
+        self.assertEqual(list(spot.mushroom_types.all()), [white])
+
+    def test_bad_coordinates_do_not_create_spot_or_crash(self):
+        for lat, lng in [('abc', '37.5'), ('55.5', 'xyz'), ('999', '37.5'), ('55.5', '-500'),
+                         ('nan', '37.5'), ('55.5', 'inf'), ('', ''), ('90.5', '0')]:
+            with self.subTest(lat=lat, lng=lng):
+                response = self.post_create(latitude=lat, longitude=lng)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'Выберите точку на карте')
+                self.assertEqual(MushroomSpot.objects.count(), 0)
+
+    def test_boundary_coordinates_are_accepted(self):
+        self.assertEqual(self.post_create(latitude='-90', longitude='180').status_code, 302)
+        self.assertEqual(MushroomSpot.objects.count(), 1)
+
+    def test_description_and_title_are_required(self):
+        response = self.post_create(description='   ')
+        self.assertContains(response, 'Добавьте описание места.')
+        response = self.post_create(title='  ')
+        self.assertContains(response, 'Укажите название места.')
+        self.assertEqual(MushroomSpot.objects.count(), 0)
+
+    def test_too_long_title_is_rejected(self):
+        response = self.post_create(title='я' * 201)
+        self.assertContains(response, 'Название слишком длинное')
+        self.assertEqual(MushroomSpot.objects.count(), 0)
+
+    def test_error_keeps_what_user_typed(self):
+        white = MushroomType.objects.get(code='white')
+        response = self.post_create(title='Моя опушка', description='', latitude='55.5', longitude='37.5',
+                                    mushroom_types=[white.pk])
+        html = response.content.decode()
+        self.assertIn('value="Моя опушка"', html)
+        self.assertRegex(html, rf'value="{white.pk}"\s+checked')
+        self.assertIn('value="55.5"', html)       # выбранная точка не теряется
+
+    def test_error_does_not_echo_bad_coordinates_back(self):
+        html = self.post_create(latitude='<b>x</b>', longitude='37.5').content.decode()
+        self.assertNotIn('<b>x</b>', html)
+        self.assertIn('id="lat" value=""', html)      # неверная координата не подставляется в форму и скрипт
+
+    def make_spot(self):
+        return MushroomSpot.objects.create(
+            author=self.author, title='Старое', description='Старое описание', latitude=55.0, longitude=37.0,
+        )
+
+    def test_edit_saves_valid_data(self):
+        spot = self.make_spot()
+        response = self.client.post(reverse('spots:spot_edit', args=[spot.pk]),
+                                    {'title': 'Новое', 'description': 'Новое описание'})
+        self.assertRedirects(response, reverse('spots:spot_detail', args=[spot.pk]))
+        spot.refresh_from_db()
+        self.assertEqual((spot.title, spot.description), ('Новое', 'Новое описание'))
+
+    def test_edit_rejects_empty_fields_and_keeps_old_values_in_db(self):
+        spot = self.make_spot()
+        url = reverse('spots:spot_edit', args=[spot.pk])
+        response = self.client.post(url, {'title': 'Новое', 'description': ' '})
+        self.assertContains(response, 'Добавьте описание места.')
+        self.assertContains(response, 'value="Новое"')     # введённое не теряется
+        response = self.client.post(url, {'title': '', 'description': 'Текст'})
+        self.assertContains(response, 'Укажите название места.')
+        spot.refresh_from_db()
+        self.assertEqual((spot.title, spot.description), ('Старое', 'Старое описание'))
+
+    def test_only_author_can_edit(self):
+        spot = self.make_spot()
+        self.client.force_login(self.other)
+        response = self.client.post(reverse('spots:spot_edit', args=[spot.pk]),
+                                    {'title': 'Взлом', 'description': 'Взлом'})
+        self.assertRedirects(response, reverse('spots:spot_detail', args=[spot.pk]))
+        spot.refresh_from_db()
+        self.assertEqual(spot.title, 'Старое')
+
+
+class AuthorRatingInCardTests(TestCase):
+    """Рейтинг автора рядом с его именем в карточке места на карте."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.author = User.objects.create_user('author', 'a@example.com', 'pw')
+        self.rater = User.objects.create_user('rater', 'r@example.com', 'pw')
+        self.spot = MushroomSpot.objects.create(
+            author=self.author, title='Опушка', description='-', latitude=55.0, longitude=37.0,
+        )
+        self.url = reverse('spots:spot_search_card', args=[self.spot.pk])
+
+    def author_line(self):
+        html = self.client.get(self.url).content.decode()
+        start = html.index('class="spot-card-author"')
+        return html[start:html.index('</p>', start)]
+
+    def test_unrated_author_is_marked(self):
+        self.assertIn('Нет оценок', self.author_line())
+
+    def test_rating_and_count_are_shown_next_to_author(self):
+        UserRating.objects.create(rater=self.rater, rated_user=self.author, score=4)
+        self.author.profile.recalculate_rating()
+        line = self.author_line()
+        self.assertIn('4,0', line)
+        self.assertIn('оценок: 1', line)
+        self.assertNotIn('Нет оценок', line)

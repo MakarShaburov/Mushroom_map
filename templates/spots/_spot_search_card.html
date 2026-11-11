@@ -52,7 +52,8 @@
         {% endif %}
     </div>
 
-    <p class="spot-card-author">Автор: <span class="user-link" data-user-open="{{ spot.author.username }}" data-user-card-url="{% url 'accounts:user_card' spot.author.username %}">{{ spot.author.username }}</span></p>
+    <p class="spot-card-author">Автор: <span class="user-link" data-user-open="{{ spot.author.username }}" data-user-card-url="{% url 'accounts:user_card' spot.author.username %}">{{ spot.author.username }}</span>
+        {% if spot.author.profile.rating_count %}<span class="spot-card-author-rating" title="Рейтинг автора, оценок: {{ spot.author.profile.rating_count }}"><span class="user-card-rating-star">★</span> {{ spot.author.profile.rating|floatformat:1 }}</span>{% else %}<span class="spot-card-author-rating">Нет оценок</span>{% endif %}</p>
 
     {% if user.is_authenticated %}
         <div class="spot-actions-row">

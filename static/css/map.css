@@ -556,6 +556,10 @@
     color: var(--muted);
     font-size: var(--fs-sm);
 }
+.spot-card-author-rating {
+    margin-left: 6px;
+    white-space: nowrap;
+}
 .spot-hazards {
     display: flex;
     flex-wrap: wrap;

@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import date, timedelta
 
 from django.contrib.auth.decorators import login_required
@@ -32,6 +33,7 @@ REPORTS_IN_CARD = 50          # сколько последних отчётов
 REPORTS_PAGE_SIZE = 20        # отчётов за раз во вкладке «Отчёты»
 REPORT_NOTE_MAX = 300
 NOTIFICATIONS_LIMIT = 20       # сколько уведомлений показывает колокольчик
+SPOT_TITLE_MAX_LENGTH = MushroomSpot._meta.get_field('title').max_length   # SQLite длину сама не проверяет
 # Подсказки вместо звёзд, когда оценить место нельзя (причины — MushroomSpot.rating_block_reason).
 RATE_HINTS = {
     'author': 'Своё место оценить нельзя.',
@@ -259,7 +261,7 @@ def spot_search_card(request, pk):
     """Компактная карточка места для окна поиска на карте (фото, название,
     рейтинг, описание, вкладка «Обзор») — открывается по клику на метку.
     Полная страница места с маршрутом остаётся как отдельный URL."""
-    spot = get_object_or_404(MushroomSpot, pk=pk)
+    spot = get_object_or_404(MushroomSpot.objects.select_related('author__profile'), pk=pk)
     return render(request, 'spots/_spot_search_card.html', _spot_card_context(request, spot))
 
 
@@ -559,15 +561,50 @@ def _hazards_from_post(request):
     return SpotHazard.objects.filter(pk__in=_ids_from_post(request, 'hazards'))
 
 
+def _parse_coordinate(raw, limit):
+    """Координата из поля формы: число в пределах [-limit, limit] или None.
+    Валидаторы модели при objects.create не вызываются, а float('abc') роняет
+    вьюху в 500; nan и inf проходят float(), но координатами не являются."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value) or abs(value) > limit:
+        return None
+    return value
+
+
+def _spot_text_error(title, description):
+    """Сообщение об ошибке в названии или описании места, '' — всё в порядке."""
+    if not title:
+        return 'Укажите название места.'
+    if len(title) > SPOT_TITLE_MAX_LENGTH:
+        return f'Название слишком длинное: не больше {SPOT_TITLE_MAX_LENGTH} символов.'
+    if not description:
+        return 'Добавьте описание места.'
+    return ''
+
+
 @login_required
 def spot_create(request):
+    error = ''
+    title = description = ''
+    selected_type_ids = set()
+    selected_hazard_ids = set()
+    prefill_lat = None
+    prefill_lng = None
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         type_ids = _ids_from_post(request, 'mushroom_types')
-        latitude = request.POST.get('latitude')
-        longitude = request.POST.get('longitude')
-        if title and latitude and longitude:
+        selected_type_ids = set(type_ids)
+        selected_hazard_ids = set(_ids_from_post(request, 'hazards'))
+        latitude = _parse_coordinate(request.POST.get('latitude'), 90)
+        longitude = _parse_coordinate(request.POST.get('longitude'), 180)
+        error = _spot_text_error(title, description)
+        if not error and (latitude is None or longitude is None):
+            error = 'Выберите точку на карте: координаты не заданы или указаны неверно.'
+        if not error:
             spot = MushroomSpot.objects.create(
                 author=request.user,
                 title=title,
@@ -581,20 +618,27 @@ def spot_create(request):
             for photo in request.FILES.getlist('photos'):
                 SpotPhoto.objects.create(spot=spot, image=photo)
             return redirect('spots:map')
-    prefill_lat = None
-    prefill_lng = None
-    try:
-        if request.GET.get('lat') and request.GET.get('lng'):
-            prefill_lat = float(request.GET['lat'])
-            prefill_lng = float(request.GET['lng'])
-    except (TypeError, ValueError):
-        prefill_lat = None
-        prefill_lng = None
+        # Ошибка: форму показываем снова, оставив введённое (кроме фото — файлы
+        # браузер повторно не подставляет) и выбранную точку, если она корректна.
+        prefill_lat, prefill_lng = latitude, longitude
+    else:
+        try:
+            if request.GET.get('lat') and request.GET.get('lng'):
+                prefill_lat = float(request.GET['lat'])
+                prefill_lng = float(request.GET['lng'])
+        except (TypeError, ValueError):
+            prefill_lat = None
+            prefill_lng = None
     return render(request, 'spots/spot_form.html', {
         'mushroom_groups': mushroom_groups(),
         'hazards': SpotHazard.objects.all(),
         'prefill_lat': prefill_lat,
         'prefill_lng': prefill_lng,
+        'error': error,
+        'title': title,
+        'description': description,
+        'selected_type_ids': selected_type_ids,
+        'selected_hazard_ids': selected_hazard_ids,
     })
 
 
@@ -656,24 +700,36 @@ def spot_edit(request, pk):
     if spot.author_id != request.user.id:
         return redirect('spots:spot_detail', pk=pk)
 
+    error = ''
+    title = spot.title
+    description = spot.description
+    selected_type_ids = set(spot.mushroom_types.values_list('id', flat=True))
+    selected_hazard_ids = set(spot.hazards.values_list('id', flat=True))
     if request.method == 'POST':
         title = request.POST.get('title', '').strip()
         description = request.POST.get('description', '').strip()
         type_ids = _ids_from_post(request, 'mushroom_types')
-        if title:
+        error = _spot_text_error(title, description)
+        if not error:
             spot.title = title
             spot.description = description
             spot.save()
             spot.mushroom_types.set(MushroomType.objects.filter(pk__in=type_ids))
             spot.hazards.set(_hazards_from_post(request))
             return redirect('spots:spot_detail', pk=pk)
+        # Ошибка: оставляем введённое, а не возвращаем сохранённые значения.
+        selected_type_ids = set(type_ids)
+        selected_hazard_ids = set(_ids_from_post(request, 'hazards'))
 
     return render(request, 'spots/spot_edit.html', {
         'spot': spot,
         'mushroom_groups': mushroom_groups(),
-        'selected_type_ids': set(spot.mushroom_types.values_list('id', flat=True)),
+        'selected_type_ids': selected_type_ids,
         'hazards': SpotHazard.objects.all(),
-        'selected_hazard_ids': set(spot.hazards.values_list('id', flat=True)),
+        'selected_hazard_ids': selected_hazard_ids,
+        'error': error,
+        'title': title,
+        'description': description,
     })
 
 

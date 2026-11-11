@@ -6,8 +6,9 @@
 
 <form method="post">
     {% csrf_token %}
-    <p><label>Название: <input type="text" name="title" value="{{ spot.title }}" required></label></p>
-    <p><label>Описание: <textarea name="description">{{ spot.description }}</textarea></label></p>
+    {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+    <p><label>Название: <input type="text" name="title" value="{{ title }}" maxlength="200" required></label></p>
+    <p><label>Описание: <textarea name="description" required>{{ description }}</textarea></label></p>
     <p>Виды грибов на этом месте (можно выбрать несколько):</p>
     {% for group in mushroom_groups %}
         <fieldset class="checkbox-group">

@@ -8,15 +8,16 @@
 
 <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    <p><label>Название: <input type="text" name="title" required></label></p>
-    <p><label>Описание: <textarea name="description"></textarea></label></p>
+    {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+    <p><label>Название: <input type="text" name="title" value="{{ title }}" maxlength="200" required></label></p>
+    <p><label>Описание: <textarea name="description" required>{{ description }}</textarea></label></p>
     <p>Виды грибов на этом месте (можно выбрать несколько):</p>
     {% for group in mushroom_groups %}
         <fieldset class="checkbox-group">
             <legend>{{ group.name }}</legend>
             {% for type in group.types %}
                 <label>
-                    <input type="checkbox" name="mushroom_types" value="{{ type.id }}"> {{ type.name }}
+                    <input type="checkbox" name="mushroom_types" value="{{ type.id }}" {% if type.id in selected_type_ids %}checked{% endif %}> {{ type.name }}
                 </label>
             {% endfor %}
         </fieldset>
@@ -26,7 +27,7 @@
         <fieldset class="checkbox-group">
             {% for hazard in hazards %}
                 <label>
-                    <input type="checkbox" name="hazards" value="{{ hazard.id }}"> {{ hazard.name }}
+                    <input type="checkbox" name="hazards" value="{{ hazard.id }}" {% if hazard.id in selected_hazard_ids %}checked{% endif %}> {{ hazard.name }}
                 </label>
             {% endfor %}
         </fieldset>

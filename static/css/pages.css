@@ -47,6 +47,11 @@
 .page form p {
     margin-bottom: var(--space-4);
 }
+/* Ошибка проверки формы (добавление и правка места). */
+.page form p.form-error {
+    color: var(--danger);
+    font-weight: 600;
+}
 .page input[type="text"],
 .page input[type="email"],
 .page input[type="password"],
