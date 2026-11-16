@@ -20,6 +20,7 @@
             <div class="user-card-name-row">
                 <h2 class="user-card-name">{{ person.username }}</h2>
                 <span class="user-card-rating"><span class="user-card-rating-star">★</span> {{ rating|default:"—" }}</span>
+                <span class="user-card-rating-count">{% if ratings_received %}{{ ratings_received }} {{ ratings_word }}{% else %}Нет оценок{% endif %}</span>
             </div>
             {% if bio %}<p class="user-card-bio">{{ bio }}</p>{% endif %}
         </div>

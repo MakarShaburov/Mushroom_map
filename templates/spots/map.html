@@ -612,6 +612,29 @@
             });
         }
 
+        // --- Автор: удаление места (правка — ссылка на страницу редактирования) ---
+        const deleteBtn = content.querySelector('.spot-delete-btn');
+        if (deleteBtn && spotCardEl) {
+            deleteBtn.addEventListener('click', () => {
+                if (!confirm('Удалить это место без возможности восстановления?')) return;
+                deleteBtn.disabled = true;
+                fetch(deleteBtn.dataset.deleteUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCsrfToken(), 'X-Panel-Request': '1' },
+                })
+                    .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+                    .then(({ ok, data }) => {
+                        if (!ok || !data.deleted) throw new Error('delete failed');
+                        removeSpotFromMap(Number(spotCardEl.dataset.spotId));
+                        showView('results');
+                    })
+                    .catch(() => {
+                        deleteBtn.disabled = false;
+                        alert('Не удалось удалить место.');
+                    });
+            });
+        }
+
         // --- Вкладки Обзор / Фото / Комментарии ---
         const tabBtns = content.querySelectorAll('.spot-tab-btn');
         tabBtns.forEach((btn) => {
@@ -1535,20 +1558,29 @@
         return line;
     }
 
+    // Название, статус, виды и начало описания. Всё от пользователей — через textContent.
     function buildSpotTooltip(spot) {
         const box = document.createElement('div');
         const title = document.createElement('strong');
         title.textContent = spot.title;
         box.appendChild(title);
         if (spot.status) box.appendChild(buildStatusLine(spot.status, 'spot-tooltip-status'));
+        const names = listTypeEntries(spot, null);
+        if (names.length > 0) box.appendChild(buildTypeChipsRow(names));
+        if (spot.description_short) {
+            const description = document.createElement('div');
+            description.className = 'spot-tooltip-desc';
+            description.textContent = spot.description_short;
+            box.appendChild(description);
+        }
         return box;
     }
 
     // Виды грибов в карточке списка. Если в фильтре выбраны виды, показываем только их
     // (по ним место и нашлось), остальные скрываем. Без фильтра — первые виды места (они уже
     // отсортированы по важности категорий). В карточке чипами идут первые MAX_TYPES_IN_LIST,
-    // остальные сворачиваются в «+N». Полный список видов — во всплывающей подсказке и в
-    // карточке места.
+    // остальные сворачиваются в «+N». Полный список видов — в подсказке при наведении на
+    // чипы (title) и в карточке места.
     const MAX_TYPES_IN_LIST = 3;
     const DANGER_ICONS = { deadly: '☠', poisonous: '⚠' };
     const DANGER_TITLES = { deadly: 'Смертельно ядовитый', poisonous: 'Ядовитый' };
@@ -1578,6 +1610,23 @@
         chip.textContent = DANGER_ICONS[danger] ? `${DANGER_ICONS[danger]} ${text}` : text;
         if (danger) chip.title = DANGER_TITLES[danger];
         return chip;
+    }
+
+    // Ряд чипов видов: первые MAX_TYPES_IN_LIST и «+N». Если среди скрытых есть опасный вид,
+    // «+N» тоже помечен: не прячем опасное за числом. Общий для списка и подсказки метки.
+    function buildTypeChipsRow(names) {
+        const chips = document.createElement('div');
+        chips.className = 'spot-type-chips';
+        names.slice(0, MAX_TYPES_IN_LIST).forEach((entry) => {
+            chips.appendChild(buildTypeChip(entry.name, entry.danger));
+        });
+        if (names.length > MAX_TYPES_IN_LIST) {
+            const hidden = names.slice(MAX_TYPES_IN_LIST);
+            const hiddenDanger = hidden.some((e) => e.danger === 'deadly') ? 'deadly'
+                : hidden.some((e) => e.danger) ? 'poisonous' : '';
+            chips.appendChild(buildTypeChip(`+${hidden.length}`, hiddenDanger));
+        }
+        return chips;
     }
 
     // 3.7 -> «3,7»
@@ -1625,20 +1674,16 @@
             none.textContent = 'Виды не указаны';
             item.appendChild(none);
         } else {
-            const chips = document.createElement('div');
-            chips.className = 'spot-type-chips';
+            const chips = buildTypeChipsRow(names);
             chips.title = spot.mushroom_types_label;
-            names.slice(0, MAX_TYPES_IN_LIST).forEach((entry) => {
-                chips.appendChild(buildTypeChip(entry.name, entry.danger));
-            });
-            if (names.length > MAX_TYPES_IN_LIST) {
-                // Если среди скрытых есть опасный вид, «+N» тоже помечен: не прячем опасное за числом.
-                const hidden = names.slice(MAX_TYPES_IN_LIST);
-                const hiddenDanger = hidden.some((e) => e.danger === 'deadly') ? 'deadly'
-                    : hidden.some((e) => e.danger) ? 'poisonous' : '';
-                chips.appendChild(buildTypeChip(`+${hidden.length}`, hiddenDanger));
-            }
             item.appendChild(chips);
+        }
+
+        if (spot.description_short) {
+            const description = document.createElement('div');
+            description.className = 'spot-list-desc';
+            description.textContent = spot.description_short;
+            item.appendChild(description);
         }
 
         item.addEventListener('click', onOpen);
@@ -1772,7 +1817,7 @@
                 const marker = L.marker([spot.latitude, spot.longitude], {
                     icon: buildSpotIcon(spot.status ? spot.status.code : 'no_data'),
                 });   // в слой его добавит applyFilters (spotLayer)
-                marker.bindTooltip(buildSpotTooltip(spot));
+                marker.bindTooltip(buildSpotTooltip(spot), { className: 'spot-tooltip' });
                 marker.on('click', () => {
                     if (routePickingField) {
                         setRoutePoint(routePickingField, { lat: spot.latitude, lng: spot.longitude, label: spot.title });

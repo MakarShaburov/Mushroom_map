@@ -10,6 +10,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from spots.models import CommentVote, MushroomSpot, SpotRating, has_visited_author
+from spots.utils import ru_plural
 from spots.views import PANEL_HEADER, render_spot_panel_response
 
 from .forms import ProfileBioForm, SignUpForm
@@ -152,6 +153,8 @@ def _user_card_context(request, person):
     spots = _user_spots(person)
     context.update({
         'rating': person.profile.rating,
+        'ratings_received': person.profile.rating_count,
+        'ratings_word': ru_plural(person.profile.rating_count, ('оценка', 'оценки', 'оценок')),
         'bio': person.profile.bio.strip(),
         'spots': spots,
         'spots_count': len(spots),

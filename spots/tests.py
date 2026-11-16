@@ -1025,8 +1025,9 @@ class SpotFormValidationTests(TestCase):
     def test_valid_spot_is_created(self):
         white = MushroomType.objects.get(code='white')
         response = self.post_create(mushroom_types=[white.pk])
-        self.assertRedirects(response, reverse('spots:map'))
         spot = MushroomSpot.objects.get()
+        # После добавления карта открывается сразу на новом месте (?spot=ID читает map.html).
+        self.assertRedirects(response, f"{reverse('spots:map')}?spot={spot.pk}", fetch_redirect_response=False)
         self.assertEqual((spot.latitude, spot.longitude, spot.author), (55.5, 37.5, self.author))
         self.assertEqual(list(spot.mushroom_types.all()), [white])
 
@@ -1078,7 +1079,7 @@ class SpotFormValidationTests(TestCase):
         spot = self.make_spot()
         response = self.client.post(reverse('spots:spot_edit', args=[spot.pk]),
                                     {'title': 'Новое', 'description': 'Новое описание'})
-        self.assertRedirects(response, reverse('spots:spot_detail', args=[spot.pk]))
+        self.assertRedirects(response, f"{reverse('spots:map')}?spot={spot.pk}", fetch_redirect_response=False)
         spot.refresh_from_db()
         self.assertEqual((spot.title, spot.description), ('Новое', 'Новое описание'))
 
@@ -1130,3 +1131,67 @@ class AuthorRatingInCardTests(TestCase):
         self.assertIn('4,0', line)
         self.assertIn('оценок: 1', line)
         self.assertNotIn('Нет оценок', line)
+
+
+class MapDataAndOwnerActionsTests(TestCase):
+    """Описание в данных для меток и списка, кнопки автора в карточке, число оценок в профиле."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.author = User.objects.create_user('author', 'a@example.com', 'pw')
+        self.other = User.objects.create_user('other', 'o@example.com', 'pw')
+        self.spot = MushroomSpot.objects.create(
+            author=self.author, title='Опушка', description='слово ' * 100, latitude=55.0, longitude=37.0,
+        )
+        self.card_url = reverse('spots:spot_search_card', args=[self.spot.pk])
+
+    def test_api_gives_short_description_only(self):
+        item = self.client.get(reverse('spots:spots_api')).json()['spots'][0]
+        self.assertNotIn('description', item)                 # полный текст в общий список не кладём
+        self.assertTrue(item['description_short'].startswith('слово слово'))
+        self.assertLessEqual(len(item['description_short']), 140)
+        self.assertTrue(item['description_short'].endswith('…'))
+
+    def test_api_keeps_short_description_whole(self):
+        self.spot.description = 'Коротко'
+        self.spot.save()
+        item = self.client.get(reverse('spots:spots_api')).json()['spots'][0]
+        self.assertEqual(item['description_short'], 'Коротко')
+
+    def test_author_sees_edit_and_delete_in_card(self):
+        self.client.force_login(self.author)
+        html = self.client.get(self.card_url).content.decode()
+        self.assertIn(reverse('spots:spot_edit', args=[self.spot.pk]), html)
+        self.assertIn(f'data-delete-url="{reverse("spots:spot_delete", args=[self.spot.pk])}"', html)
+
+    def test_other_users_and_guests_do_not_see_owner_buttons(self):
+        for user in (None, self.other):
+            with self.subTest(user=user):
+                self.client.logout()
+                if user:
+                    self.client.force_login(user)
+                html = self.client.get(self.card_url).content.decode()
+                self.assertNotIn('spot-delete-btn', html)
+                self.assertNotIn('spot-owner-btn', html)
+
+    def test_delete_from_card_works_for_author_and_not_for_others(self):
+        url = reverse('spots:spot_delete', args=[self.spot.pk])
+        self.client.force_login(self.other)
+        response = self.client.post(url, HTTP_X_PANEL_REQUEST='1')
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(MushroomSpot.objects.filter(pk=self.spot.pk).exists())
+        self.client.force_login(self.author)
+        response = self.client.post(url, HTTP_X_PANEL_REQUEST='1')
+        self.assertEqual(response.json(), {'deleted': True})
+        self.assertFalse(MushroomSpot.objects.filter(pk=self.spot.pk).exists())
+
+    def test_user_card_shows_received_ratings_count(self):
+        url = reverse('accounts:user_card', args=['author'])
+        self.assertContains(self.client.get(url), 'Нет оценок')
+        for name, score in (('r1', 4), ('r2', 5)):
+            rater = get_user_model().objects.create_user(name, f'{name}@example.com', 'pw')
+            UserRating.objects.create(rater=rater, rated_user=self.author, score=score)
+        self.author.profile.recalculate_rating()
+        html = self.client.get(url).content.decode()
+        self.assertIn('2 оценки', html)
+        self.assertIn('4,5', html)

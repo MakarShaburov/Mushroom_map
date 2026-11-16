@@ -7,7 +7,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, Prefetch, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.text import Truncator
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET, require_POST
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -33,6 +35,7 @@ REPORTS_IN_CARD = 50          # сколько последних отчётов
 REPORTS_PAGE_SIZE = 20        # отчётов за раз во вкладке «Отчёты»
 REPORT_NOTE_MAX = 300
 NOTIFICATIONS_LIMIT = 20       # сколько уведомлений показывает колокольчик
+SPOT_PREVIEW_CHARS = 140        # длина описания в списке и подсказке метки (/api/spots/)
 SPOT_TITLE_MAX_LENGTH = MushroomSpot._meta.get_field('title').max_length   # SQLite длину сама не проверяет
 # Подсказки вместо звёзд, когда оценить место нельзя (причины — MushroomSpot.rating_block_reason).
 RATE_HINTS = {
@@ -109,6 +112,8 @@ def spots_api(request):
         data.append({
             'id': spot.pk,
             'title': spot.title,
+            # Полное описание в общий список не кладём: места грузятся одним запросом.
+            'description_short': Truncator(spot.description).chars(SPOT_PREVIEW_CHARS),
             'author': spot.author.username,
             'mushroom_types': [t.code for t in types],
             # Названия в порядке важности категорий — для усечённого списка в поиске.
@@ -561,6 +566,12 @@ def _hazards_from_post(request):
     return SpotHazard.objects.filter(pk__in=_ids_from_post(request, 'hazards'))
 
 
+def _redirect_to_spot_on_map(spot):
+    """Карта с открытой карточкой места: ?spot=ID читает map.html (так же открываются
+    места из уведомлений), поэтому после добавления и правки видно результат на карте."""
+    return redirect(f"{reverse('spots:map')}?spot={spot.pk}")
+
+
 def _parse_coordinate(raw, limit):
     """Координата из поля формы: число в пределах [-limit, limit] или None.
     Валидаторы модели при objects.create не вызываются, а float('abc') роняет
@@ -617,7 +628,7 @@ def spot_create(request):
             spot.hazards.set(_hazards_from_post(request))
             for photo in request.FILES.getlist('photos'):
                 SpotPhoto.objects.create(spot=spot, image=photo)
-            return redirect('spots:map')
+            return _redirect_to_spot_on_map(spot)
         # Ошибка: форму показываем снова, оставив введённое (кроме фото — файлы
         # браузер повторно не подставляет) и выбранную точку, если она корректна.
         prefill_lat, prefill_lng = latitude, longitude
@@ -716,7 +727,7 @@ def spot_edit(request, pk):
             spot.save()
             spot.mushroom_types.set(MushroomType.objects.filter(pk__in=type_ids))
             spot.hazards.set(_hazards_from_post(request))
-            return redirect('spots:spot_detail', pk=pk)
+            return _redirect_to_spot_on_map(spot)
         # Ошибка: оставляем введённое, а не возвращаем сохранённые значения.
         selected_type_ids = set(type_ids)
         selected_hazard_ids = set(_ids_from_post(request, 'hazards'))
