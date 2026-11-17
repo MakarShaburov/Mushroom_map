@@ -1205,3 +1205,32 @@ class EditPageBackButtonTests(TestCase):
         html = self.client.get(reverse('spots:spot_edit', args=[spot.pk])).content.decode()
         self.assertIn(f'class="button-neutral" href="{reverse("spots:map")}?spot={spot.pk}"', html)
         self.assertNotIn(reverse('spots:spot_detail', args=[spot.pk]), html)
+
+
+class MapHelpAndFilterButtonTests(TestCase):
+    """Пункт «Справка» в меню «⋯» и значок фильтра на странице карты."""
+
+    def test_help_is_available_to_guests_and_logged_in_users(self):
+        get_user_model().objects.create_user('u', 'u@example.com', 'pw')
+        for login in (False, True):
+            with self.subTest(logged_in=login):
+                self.client.logout()
+                if login:
+                    self.client.login(username='u', password='pw')
+                html = self.client.get(reverse('spots:map')).content.decode()
+                self.assertIn('id="help-open"', html)
+                self.assertIn('id="help-overlay"', html)
+                self.assertIn('aria-labelledby="help-title"', html)
+
+    def test_help_covers_every_part_of_the_interface(self):
+        html = self.client.get(reverse('spots:map')).content.decode()
+        for fragment in ('Фильтры', 'Меню по правому клику', 'Карточка места', 'Справочник',
+                         'Добавить место', 'Колокольчик', 'Настройки'):
+            self.assertIn(fragment, html)
+
+    def test_filter_button_uses_svg_icon_not_emoji(self):
+        html = self.client.get(reverse('spots:map')).content.decode()
+        start = html.index('id="search-filter-toggle"')
+        button = html[start:html.index('</button>', start)]
+        self.assertIn('<svg', button)
+        self.assertNotIn('🎚', html)

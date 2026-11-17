@@ -66,6 +66,13 @@
 .search-panel-tab-btn.active {
     box-shadow: 0 0 0 2px var(--link);
 }
+/* SVG-значок в кнопке (цвет — currentColor, размер растёт вместе со шрифтом кнопки). */
+.search-panel-tab-btn .tab-btn-icon {
+    display: block;
+    width: 1.3em;
+    height: 1.3em;
+    margin: auto;
+}
 #search-panel-header {
     padding: 12px;
     flex-shrink: 0;
@@ -121,11 +128,17 @@
     text-transform: uppercase;
     letter-spacing: 0.02em;
 }
+/* Шапка фильтров с кнопкой закрытия прилипает к верху прокручиваемой панели — так же, как
+   .spot-card-header-row: закрыть окно можно и в прокрученном состоянии. */
 .filters-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 10px;
+    padding: 4px 0 10px;
+    background: var(--panel-bg);
 }
 .filters-header strong {
     margin-right: 10px;
@@ -338,8 +351,80 @@
     font-weight: bold;
     margin-bottom: 10px;
 }
+/* Пункт меню «⋯» (Справка) и разделитель перед блоком темы. */
+.settings-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 4px 0;
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-weight: bold;
+    text-align: left;
+    cursor: pointer;
+}
+.settings-menu-item:hover {
+    color: var(--link);
+}
+.settings-menu-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    font-size: 12px;
+    line-height: 1;
+}
+.settings-menu-divider {
+    height: 1px;
+    margin: 10px 0 12px;
+    background: var(--border);
+}
 .theme-dropdown-icon {
-    font-size: 16px;
+    flex-shrink: 0;
+}
+/* Окно справки: заголовок с крестиком не прокручивается, прокручивается только текст. */
+.help-modal {
+    display: flex;
+    flex-direction: column;
+    width: 560px;
+    padding: 0;
+    overflow: hidden;
+}
+.help-modal-head {
+    flex-shrink: 0;
+    padding: 16px 52px 12px 24px;
+    border-bottom: 1px solid var(--border);
+}
+.help-modal-head h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+.help-modal-body {
+    padding: 8px 24px 24px;
+    overflow-y: auto;
+    line-height: 1.45;
+}
+.help-modal-body h3 {
+    margin: 18px 0 6px;
+    font-size: 1rem;
+}
+.help-modal-body ul {
+    margin: 0;
+    padding-left: 20px;
+}
+.help-modal-body li {
+    margin: 4px 0;
+}
+.help-lead,
+.help-note {
+    margin: 8px 0 0;
+    color: var(--muted);
 }
 .theme-toggle-group {
     display: flex;
