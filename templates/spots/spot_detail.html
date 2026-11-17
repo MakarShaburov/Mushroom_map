@@ -38,7 +38,9 @@
     const spotLatLng = [{{ spot.latitude|unlocalize }}, {{ spot.longitude|unlocalize }}];
     const routeMap = L.map('route-map').setView(spotLatLng, 11);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key={{ carto_api_key }}', {
+    // Тема уже выставлена в base.html (из localStorage); тайлы — те же, что на главной карте.
+    const tileStyle = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark_all' : 'voyager';
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/' + tileStyle + '/{z}/{x}/{y}{r}.png?key={{ carto_api_key }}', {
         attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
         subdomains: 'abcd',
         maxZoom: 20,
