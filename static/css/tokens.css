@@ -12,6 +12,8 @@
     --nav-text: #ffffff;
     --link: #2e5339;
     --muted: #666666;
+    --btn-neutral-bg: #6b7177;     /* серая кнопка рядом с основной («Назад») */
+    --btn-neutral-text: #ffffff;
 }
 
 :root[data-theme="dark"] {
@@ -23,6 +25,8 @@
     --nav-text: #f0f0f0;
     --link: #7fcf9a;
     --muted: #a0a0a0;
+    --btn-neutral-bg: #3d4348;
+    --btn-neutral-text: #f0f0f0;
 }
 
 /* Высота верхней панели. От неё на телефоне считается высота карты (map-phone.css). */

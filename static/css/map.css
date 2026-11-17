@@ -1863,8 +1863,16 @@ button.season-col:focus-visible {
     box-sizing: border-box;
     width: max-content;
     max-width: 260px;
+    border-color: var(--border);
+    background: var(--panel-bg);   /* по умолчанию Leaflet рисует белое: в тёмной теме чипы нечитаемы */
+    color: var(--text);
     white-space: normal;
 }
+/* Стрелка подсказки: у Leaflet её цвет задан отдельно для каждой стороны. */
+.spot-tooltip.leaflet-tooltip-left::before { border-left-color: var(--panel-bg); }
+.spot-tooltip.leaflet-tooltip-right::before { border-right-color: var(--panel-bg); }
+.spot-tooltip.leaflet-tooltip-top::before { border-top-color: var(--panel-bg); }
+.spot-tooltip.leaflet-tooltip-bottom::before { border-bottom-color: var(--panel-bg); }
 .spot-tooltip .spot-type-chips {
     margin-top: 4px;
 }

@@ -145,3 +145,22 @@
 .page button[type="submit"]:hover {
     filter: brightness(1.15);
 }
+/* Ряд кнопок формы; вторая — серая ссылка в виде такой же кнопки («Назад»). */
+.page .form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+.page a.button-neutral {
+    display: inline-block;
+    padding: 10px 20px;
+    border: 1px solid var(--btn-neutral-bg);
+    border-radius: var(--radius-pill);
+    background: var(--btn-neutral-bg);
+    color: var(--btn-neutral-text);
+    font-weight: 600;
+    text-decoration: none;
+}
+.page a.button-neutral:hover {
+    filter: brightness(1.15);
+}

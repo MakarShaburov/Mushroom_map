@@ -1195,3 +1195,13 @@ class MapDataAndOwnerActionsTests(TestCase):
         html = self.client.get(url).content.decode()
         self.assertIn('2 оценки', html)
         self.assertIn('4,5', html)
+
+
+class EditPageBackButtonTests(TestCase):
+    def test_back_button_leads_to_map_with_open_spot(self):
+        author = get_user_model().objects.create_user('author', 'a@example.com', 'pw')
+        spot = MushroomSpot.objects.create(author=author, title='Опушка', description='-', latitude=55.0, longitude=37.0)
+        self.client.force_login(author)
+        html = self.client.get(reverse('spots:spot_edit', args=[spot.pk])).content.decode()
+        self.assertIn(f'class="button-neutral" href="{reverse("spots:map")}?spot={spot.pk}"', html)
+        self.assertNotIn(reverse('spots:spot_detail', args=[spot.pk]), html)

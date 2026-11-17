@@ -30,8 +30,9 @@
             {% endfor %}
         </fieldset>
     {% endif %}
-    <button type="submit">Сохранить изменения</button>
+    <div class="form-actions">
+        <button type="submit">Сохранить изменения</button>
+        <a class="button-neutral" href="{% url 'spots:map' %}?spot={{ spot.pk }}">← Назад к месту</a>
+    </div>
 </form>
-
-<p><a href="{% url 'spots:spot_detail' spot.pk %}">← Назад к месту</a></p>
 {% endblock %}
