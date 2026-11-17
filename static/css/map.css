@@ -484,11 +484,18 @@
     font-size: var(--fs-sm);
     margin-top: 2px;
 }
+/* Шапка «Место» / «Профиль» с кнопкой закрытия прилипает к верху прокручиваемой панели
+   (#search-panel-body), чтобы карточку можно было закрыть и в прокрученном состоянии. Фон
+   закрывает уходящее под неё содержимое; z-index выше элементов внутри карточки (≤ 2). */
 .spot-card-header-row {
+    position: sticky;
+    top: 0;
+    z-index: 3;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    padding: 4px 0 8px;
+    background: var(--panel-bg);
 }
 .spot-card-photos {
     position: relative;
